@@ -19,12 +19,26 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Emulator (x86_64) and current phones. Drops 32-bit ABIs.
+            ndk {
+                abiFilters.addAll(listOf("arm64-v8a", "x86_64"))
+            }
+        }
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            // Local installable release build. There is no upload keystore.
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            ndk {
+                // Default is a phone APK. Override with -Pabi=x86_64 for an emulator.
+                val requestedAbi = (project.findProperty("abi") as String?)?.trim().orEmpty()
+                abiFilters.add(requestedAbi.ifEmpty { "arm64-v8a" })
+            }
         }
     }
 
@@ -54,9 +68,9 @@ dependencies {
     androidTestImplementation(composeBom)
 
     implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.ui:ui-tooling-preview")
+    debugImplementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.compose.material:material-icons-core")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
@@ -64,7 +78,6 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.navigation:navigation-compose:2.8.5")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
-    implementation("com.google.android.material:material:1.12.0")
 
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")

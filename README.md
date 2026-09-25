@@ -17,7 +17,19 @@ From a terminal, with `ANDROID_HOME` pointing at your SDK:
 ./gradlew assembleDebug
 ```
 
-The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
+The debug APK is `app/build/outputs/apk/debug/app-debug.apk`. It includes `arm64-v8a` and `x86_64`, so it runs on a current phone and on an x86_64 emulator.
+
+A smaller release APK, signed with the debug key so it can be installed locally, is arm64-only:
+
+```bash
+./gradlew assembleRelease
+```
+
+Output: `app/build/outputs/apk/release/app-release.apk`. For an x86_64 emulator build of that same release variant:
+
+```bash
+./gradlew assembleRelease -Pabi=x86_64
+```
 
 ## Using it
 
