@@ -24,9 +24,14 @@ import com.keenin.calbudget.ui.events.EventListScreen
 import com.keenin.calbudget.ui.home.HomeScreen
 import com.keenin.calbudget.ui.nav.Routes
 import com.keenin.calbudget.ui.settings.SettingsScreen
+import com.keenin.calbudget.ui.theme.ThemeMode
 
 @Composable
-fun AppRoot(viewModel: BudgetViewModel) {
+fun AppRoot(
+    viewModel: BudgetViewModel,
+    themeMode: ThemeMode,
+    onThemeMode: (ThemeMode) -> Unit,
+) {
     val navController = rememberNavController()
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     val backStack by navController.currentBackStackEntryAsState()
@@ -42,9 +47,6 @@ fun AppRoot(viewModel: BudgetViewModel) {
                 HomeScreen(
                     ui = ui,
                     onOpenMenu = { menuOpen = true },
-                    onSetupPay = {
-                        navController.navigate(Routes.PAY) { launchSingleTop = true }
-                    },
                     onCapture = { cardId, cents, cycleKey ->
                         viewModel.captureStatement(cardId, cents, cycleKey)
                     },
@@ -88,6 +90,8 @@ fun AppRoot(viewModel: BudgetViewModel) {
             }
             composable(Routes.SETTINGS) {
                 SettingsScreen(
+                    themeMode = themeMode,
+                    onThemeMode = onThemeMode,
                     onOpenMenu = { menuOpen = true },
                     onClearAll = { viewModel.clearAll() },
                 )

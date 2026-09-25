@@ -2,11 +2,14 @@ package com.keenin.calbudget.ui.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -19,9 +22,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.keenin.calbudget.ui.components.MenuScaffold
+import com.keenin.calbudget.ui.theme.ThemeMode
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
+    themeMode: ThemeMode,
+    onThemeMode: (ThemeMode) -> Unit,
     onOpenMenu: () -> Unit,
     onClearAll: () -> Unit,
 ) {
@@ -53,10 +60,14 @@ fun SettingsScreen(
             )
             Text("Appearance", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 8.dp))
             Text(
-                "Cal follows the system light and dark theme.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                "Dark mode",
+                style = MaterialTheme.typography.titleMedium,
             )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ThemeChoice(ThemeMode.SYSTEM, "System default", themeMode, onThemeMode)
+                ThemeChoice(ThemeMode.LIGHT, "Light", themeMode, onThemeMode)
+                ThemeChoice(ThemeMode.DARK, "Dark", themeMode, onThemeMode)
+            }
             Text("Data", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 8.dp))
             OutlinedButton(onClick = { confirm = true }) {
                 Text("Erase all data")
@@ -87,4 +98,18 @@ fun SettingsScreen(
             },
         )
     }
+}
+
+@Composable
+private fun ThemeChoice(
+    mode: ThemeMode,
+    label: String,
+    selected: ThemeMode,
+    onThemeMode: (ThemeMode) -> Unit,
+) {
+    FilterChip(
+        selected = selected == mode,
+        onClick = { onThemeMode(mode) },
+        label = { Text(label) },
+    )
 }
