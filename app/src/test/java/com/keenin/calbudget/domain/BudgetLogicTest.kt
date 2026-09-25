@@ -123,6 +123,25 @@ class BudgetLogicTest {
         // Next period: weekly Sep 25 and Oct 2, plus the Oct 1 bill.
         assertEquals(80_00 + 80_00, snapshot.nextPeriodCents)
         assertEquals(3, snapshot.nextPeriodCount)
+        assertEquals(
+            listOf(
+                line("Groceries", LocalDate.of(2026, 9, 11), 40_00),
+                line("Mortgage", LocalDate.of(2026, 9, 15), 1_500_00),
+                line("Card", LocalDate.of(2026, 9, 17), 200_00),
+                line("Groceries", LocalDate.of(2026, 9, 18), 40_00),
+            ),
+            snapshot.untilPayday,
+        )
+        assertEquals(
+            listOf(
+                line("Groceries", LocalDate.of(2026, 9, 25), 40_00),
+                line("Later", LocalDate.of(2026, 10, 1), 80_00),
+                line("Groceries", LocalDate.of(2026, 10, 2), 40_00),
+            ),
+            snapshot.nextPeriod,
+        )
+        assertEquals(snapshot.untilPaydayCents, snapshot.untilPayday.sumOf { it.amountCents })
+        assertEquals(snapshot.nextPeriodCents, snapshot.nextPeriod.sumOf { it.amountCents })
     }
 
     @Test
@@ -159,6 +178,8 @@ class BudgetLogicTest {
         assertEquals(1, snapshot.untilPaydayCount)
         assertEquals(50_00, snapshot.nextPeriodCents)
         assertEquals(1, snapshot.nextPeriodCount)
+        assertEquals(listOf(line("Overdue", LocalDate.of(2026, 9, 6), 75_00, overdue = true)), snapshot.untilPayday)
+        assertEquals(listOf(line("Later", LocalDate.of(2026, 9, 30), 50_00)), snapshot.nextPeriod)
     }
 
     @Test
@@ -207,6 +228,14 @@ class BudgetLogicTest {
         assertEquals(1, after.untilPaydayCount)
         assertEquals(80_00, after.nextPeriodCents)
         assertEquals(2, after.nextPeriodCount)
+        assertEquals(listOf(line("Groceries", LocalDate.of(2026, 9, 18), 40_00)), after.untilPayday)
+        assertEquals(
+            listOf(
+                line("Groceries", LocalDate.of(2026, 9, 25), 40_00),
+                line("Groceries", LocalDate.of(2026, 10, 2), 40_00),
+            ),
+            after.nextPeriod,
+        )
         assertEquals(LocalDate.of(2026, 9, 18), BudgetCalculator.nextUnpaidOccurrence(paid, today))
         assertEquals(
             LocalDate.of(2026, 9, 11),
@@ -244,6 +273,8 @@ class BudgetLogicTest {
         assertEquals(withoutIncome, withIncome)
         assertEquals(80_00, withoutIncome.untilPaydayCents)
         assertEquals(80_00, withoutIncome.nextPeriodCents)
+        assertTrue(withoutIncome.untilPayday.none { it.name == "Pay" })
+        assertTrue(withoutIncome.nextPeriod.none { it.name == "Pay" })
     }
 
     @Test
@@ -253,6 +284,8 @@ class BudgetLogicTest {
         assertNull(snapshot.followingPayday)
         assertEquals(0, snapshot.untilPaydayCents)
         assertEquals(0, snapshot.nextPeriodCents)
+        assertTrue(snapshot.untilPayday.isEmpty())
+        assertTrue(snapshot.nextPeriod.isEmpty())
     }
 
     @Test
@@ -306,6 +339,8 @@ class BudgetLogicTest {
         assertEquals(1, snapshot.untilPaydayCount)
         assertEquals(300_00, snapshot.nextPeriodCents)
         assertEquals(1, snapshot.nextPeriodCount)
+        assertEquals(listOf(line("Card", LocalDate.of(2026, 9, 17), 500_00)), snapshot.untilPayday)
+        assertEquals(listOf(line("Next", LocalDate.of(2026, 10, 1), 300_00)), snapshot.nextPeriod)
     }
 
     @Test
@@ -325,6 +360,8 @@ class BudgetLogicTest {
         assertEquals(0, BudgetCalculator.remainingOwed(halfAgain))
         assertEquals(0, covered.untilPaydayCents)
         assertEquals(0, covered.untilPaydayCount)
+        assertTrue(covered.untilPayday.isEmpty())
+        assertTrue(covered.nextPeriod.isEmpty())
 
         val overpaid = BudgetCalculator.recordPayment(owed, 1_500_00)
         val over = BudgetCalculator.calculate(events, listOf(overpaid), today)
@@ -351,6 +388,8 @@ class BudgetLogicTest {
         val snapshot = BudgetCalculator.calculate(events, listOf(overdue), today)
         assertEquals(750_00, snapshot.untilPaydayCents)
         assertEquals(0, snapshot.nextPeriodCents)
+        assertEquals(listOf(line("Card", LocalDate.of(2026, 9, 6), 750_00, overdue = true)), snapshot.untilPayday)
+        assertTrue(snapshot.nextPeriod.isEmpty())
     }
 
     @Test
@@ -424,6 +463,9 @@ class BudgetLogicTest {
         assertEquals("20.50", Money.toInput(20_50))
         assertEquals("20.59", Money.sanitizeInput("20.5abc9"))
     }
+
+    private fun line(name: String, due: LocalDate, amount: Long, overdue: Boolean = false) =
+        ObligationLine(name = name, due = due, amountCents = amount, overdue = overdue)
 
     private fun pay(start: LocalDate) = event(
         kind = EventKind.PAY,

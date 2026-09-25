@@ -1,5 +1,6 @@
 package com.keenin.calbudget.ui.home
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,12 +21,16 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.keenin.calbudget.domain.Money
 import com.keenin.calbudget.ui.BudgetUi
+import com.keenin.calbudget.ui.nav.Routes
 import com.keenin.calbudget.ui.cards.StatementCaptureDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -35,6 +40,7 @@ fun HomeScreen(
     onOpenMenu: () -> Unit,
     onCapture: (cardId: Long, amountCents: Long, cycleKey: String) -> Unit,
     onSkipCapture: (Long) -> Unit,
+    onOpenBreakdown: (String) -> Unit,
 ) {
     val prompt = ui.prompts.firstOrNull()
     val untilPayday = Money.format(if (ui.snapshot.nextPayday == null) 0 else ui.snapshot.untilPaydayCents)
@@ -69,7 +75,12 @@ fun HomeScreen(
             contentAlignment = Alignment.Center,
         ) {
             if (!ui.loading) {
-                TwoAmounts(untilPayday, nextPeriod)
+                TwoAmounts(
+                    untilPayday = untilPayday,
+                    nextPeriod = nextPeriod,
+                    onUntilPayday = { onOpenBreakdown(Routes.WINDOW_UNTIL) },
+                    onNextPeriod = { onOpenBreakdown(Routes.WINDOW_NEXT) },
+                )
             }
         }
     }
@@ -87,21 +98,37 @@ fun HomeScreen(
 }
 
 @Composable
-private fun TwoAmounts(untilPayday: String, nextPeriod: String) {
+private fun TwoAmounts(
+    untilPayday: String,
+    nextPeriod: String,
+    onUntilPayday: () -> Unit,
+    onNextPeriod: () -> Unit,
+) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        PeriodAmount(label = "Until payday", amount = untilPayday, primary = true)
+        PeriodAmount(label = "Until payday", amount = untilPayday, primary = true, onClick = onUntilPayday)
         Spacer(Modifier.height(36.dp))
-        PeriodAmount(label = "Next period", amount = nextPeriod, primary = false)
+        PeriodAmount(label = "Next period", amount = nextPeriod, primary = false, onClick = onNextPeriod)
     }
 }
 
 @Composable
-private fun PeriodAmount(label: String, amount: String, primary: Boolean) {
+private fun PeriodAmount(
+    label: String,
+    amount: String,
+    primary: Boolean,
+    onClick: () -> Unit,
+) {
     val size = amountSize(amount, primary)
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .semantics { contentDescription = "$label, $amount" }
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(vertical = 4.dp),
+    ) {
         Text(
             label,
             style = MaterialTheme.typography.labelLarge,

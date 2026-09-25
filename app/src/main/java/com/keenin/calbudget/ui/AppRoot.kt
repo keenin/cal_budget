@@ -21,6 +21,7 @@ import com.keenin.calbudget.ui.cards.CardListScreen
 import com.keenin.calbudget.ui.components.EndDrawer
 import com.keenin.calbudget.ui.events.EventEditScreen
 import com.keenin.calbudget.ui.events.EventListScreen
+import com.keenin.calbudget.ui.home.BreakdownScreen
 import com.keenin.calbudget.ui.home.HomeScreen
 import com.keenin.calbudget.ui.nav.Routes
 import com.keenin.calbudget.ui.settings.SettingsScreen
@@ -51,6 +52,17 @@ fun AppRoot(
                         viewModel.captureStatement(cardId, cents, cycleKey)
                     },
                     onSkipCapture = viewModel::skipStatement,
+                    onOpenBreakdown = { window -> navController.navigate(Routes.breakdown(window)) },
+                )
+            }
+            composable(
+                route = Routes.BREAKDOWN,
+                arguments = listOf(navArgument("window") { type = NavType.StringType }),
+            ) { entry ->
+                BreakdownScreen(
+                    window = entry.arguments?.getString("window").orEmpty(),
+                    ui = ui,
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable(Routes.BILLS) {

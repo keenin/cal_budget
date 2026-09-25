@@ -5,17 +5,27 @@ import com.keenin.calbudget.data.db.CreditCardEntity
 import com.keenin.calbudget.data.db.EventKind
 import java.time.LocalDate
 
+data class ObligationLine(
+    val name: String,
+    val due: LocalDate,
+    val amountCents: Long,
+    val overdue: Boolean,
+)
+
 data class BudgetSnapshot(
     val nextPayday: LocalDate?,
     /** Payday after [nextPayday]. End of the next paycheck period. Null when none remains. */
     val followingPayday: LocalDate?,
     /** Unpaid obligations due from today through [nextPayday], inclusive. */
-    val untilPaydayCents: Long,
+    val untilPayday: List<ObligationLine> = emptyList(),
     /** Unpaid obligations due strictly after [nextPayday] through [followingPayday], inclusive. */
-    val nextPeriodCents: Long,
-    val untilPaydayCount: Int,
-    val nextPeriodCount: Int,
-)
+    val nextPeriod: List<ObligationLine> = emptyList(),
+) {
+    val untilPaydayCents: Long get() = untilPayday.sumOf { it.amountCents }
+    val nextPeriodCents: Long get() = nextPeriod.sumOf { it.amountCents }
+    val untilPaydayCount: Int get() = untilPayday.size
+    val nextPeriodCount: Int get() = nextPeriod.size
+}
 
 data class StatementPrompt(
     val cardId: Long,
@@ -40,48 +50,19 @@ object BudgetCalculator {
         today: LocalDate,
     ): BudgetSnapshot {
         val payday = nextPayday(events, today)
-            ?: return BudgetSnapshot(
-                nextPayday = null,
-                followingPayday = null,
-                untilPaydayCents = 0,
-                nextPeriodCents = 0,
-                untilPaydayCount = 0,
-                nextPeriodCount = 0,
-            )
+            ?: return BudgetSnapshot(nextPayday = null, followingPayday = null)
         val following = paydayAfter(events, payday)
-        val until = sumCash(events, today, payday)
+        val until = windowLines(events, cards, today, today, payday, includeEarlierCards = true)
         val next = if (following == null) {
-            WindowTotal(0, 0)
+            emptyList()
         } else {
-            sumCash(events, payday.plusDays(1), following)
-        }
-
-        var untilCents = until.cents
-        var untilCount = until.count
-        var nextCents = next.cents
-        var nextCount = next.count
-        for (card in cards) {
-            val remaining = remainingOwed(card)
-            if (remaining <= 0L) continue
-            val due = balanceDueDate(card, today)
-            when {
-                !due.isAfter(payday) -> {
-                    untilCents += remaining
-                    untilCount += 1
-                }
-                following != null && !due.isAfter(following) -> {
-                    nextCents += remaining
-                    nextCount += 1
-                }
-            }
+            windowLines(events, cards, today, payday.plusDays(1), following, includeEarlierCards = false)
         }
         return BudgetSnapshot(
             nextPayday = payday,
             followingPayday = following,
-            untilPaydayCents = untilCents,
-            nextPeriodCents = nextCents,
-            untilPaydayCount = untilCount,
-            nextPeriodCount = nextCount,
+            untilPayday = until,
+            nextPeriod = next,
         )
     }
 
@@ -197,19 +178,39 @@ object BudgetCalculator {
         return pays.mapNotNull { Schedule.nextOnOrAfter(it, payday.plusDays(1)) }.minOrNull()
     }
 
-    private fun sumCash(events: List<CashEventEntity>, from: LocalDate, to: LocalDate): WindowTotal {
-        var cents = 0L
-        var count = 0
+    private fun windowLines(
+        events: List<CashEventEntity>,
+        cards: List<CreditCardEntity>,
+        today: LocalDate,
+        from: LocalDate,
+        to: LocalDate,
+        includeEarlierCards: Boolean,
+    ): List<ObligationLine> {
+        val lines = ArrayList<ObligationLine>()
         for (event in events) {
             if (event.kind == EventKind.PAY) continue
-            val dates = unpaidOccurrences(event, from, to)
-            if (dates.isNotEmpty()) {
-                cents += event.amountCents * dates.size
-                count += dates.size
+            for (date in unpaidOccurrences(event, from, to)) {
+                lines += ObligationLine(
+                    name = event.name,
+                    due = date,
+                    amountCents = event.amountCents,
+                    overdue = date.isBefore(today),
+                )
             }
         }
-        return WindowTotal(cents, count)
+        for (card in cards) {
+            val remaining = remainingOwed(card)
+            if (remaining <= 0L) continue
+            val due = balanceDueDate(card, today)
+            val earlierThanWindow = !includeEarlierCards && due.isBefore(from)
+            if (earlierThanWindow || due.isAfter(to)) continue
+            lines += ObligationLine(
+                name = card.name,
+                due = due,
+                amountCents = remaining,
+                overdue = due.isBefore(today),
+            )
+        }
+        return lines.sortedWith(compareBy({ it.due }, { it.name.lowercase() }))
     }
-
-    private data class WindowTotal(val cents: Long, val count: Int)
 }
