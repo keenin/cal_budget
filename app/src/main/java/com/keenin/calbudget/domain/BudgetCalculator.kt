@@ -61,15 +61,16 @@ object BudgetCalculator {
         var nextCents = next.cents
         var nextCount = next.count
         for (card in cards) {
-            if (card.amountCents <= 0L) continue
+            val remaining = remainingOwed(card)
+            if (remaining <= 0L) continue
             val due = balanceDueDate(card, today)
             when {
                 !due.isAfter(payday) -> {
-                    untilCents += card.amountCents
+                    untilCents += remaining
                     untilCount += 1
                 }
                 following != null && !due.isAfter(following) -> {
-                    nextCents += card.amountCents
+                    nextCents += remaining
                     nextCount += 1
                 }
             }
@@ -108,6 +109,44 @@ object BudgetCalculator {
                 cycleKey = key,
             )
         }.sortedWith(compareBy({ it.statementDate }, { it.cardName.lowercase() }, { it.cardId }))
+    }
+
+    /** Statement balance still unpaid for the current cycle. Overpay counts as zero. */
+    fun remainingOwed(card: CreditCardEntity): Long {
+        return (card.amountCents - card.paidTowardCents).coerceAtLeast(0L)
+    }
+
+    /** Add a payment toward the current statement. Does not change the statement balance. */
+    fun recordPayment(card: CreditCardEntity, paymentCents: Long): CreditCardEntity {
+        if (paymentCents <= 0L) return card
+        return card.copy(paidTowardCents = card.paidTowardCents + paymentCents)
+    }
+
+    fun clearPayment(card: CreditCardEntity): CreditCardEntity {
+        return card.copy(paidTowardCents = 0L)
+    }
+
+    /**
+     * Store a statement balance. A new cycle drops payments from the previous one.
+     * The same cycle keeps them, so a corrected balance still subtracts what was paid.
+     */
+    fun applyStatementBalance(
+        card: CreditCardEntity,
+        amountCents: Long,
+        cycleKey: String,
+    ): CreditCardEntity {
+        val paid = if (card.lastCapturedCycleKey == cycleKey) card.paidTowardCents else 0L
+        return card.copy(
+            amountCents = amountCents,
+            lastCapturedCycleKey = cycleKey,
+            paidTowardCents = paid,
+        )
+    }
+
+    /** Payments survive an edit only while the statement cycle stays the same. */
+    fun paidTowardForSave(existing: CreditCardEntity?, cycleKey: String?): Long {
+        if (existing == null || cycleKey != existing.lastCapturedCycleKey) return 0L
+        return existing.paidTowardCents
     }
 
     fun balanceDueDate(card: CreditCardEntity, today: LocalDate): LocalDate {

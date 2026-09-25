@@ -282,6 +282,100 @@ class BudgetLogicTest {
     }
 
     @Test
+    fun partialCardPaymentReducesTheWindowItsDueDateFallsIn() {
+        val today = LocalDate.of(2026, 9, 10)
+        val events = listOf(pay(start = LocalDate.of(2026, 9, 4)))
+        val untilCard = card(
+            statementDay = 5,
+            amount = 1_000_00,
+            captured = LocalDate.of(2026, 9, 5),
+            daysAfter = 12,
+        ).let { BudgetCalculator.recordPayment(it, 500_00) }
+        val nextCard = card(
+            id = 2,
+            statementDay = 1,
+            amount = 400_00,
+            captured = LocalDate.of(2026, 10, 1),
+            daysAfter = 0,
+            name = "Next",
+        ).let { BudgetCalculator.recordPayment(it, 100_00) }
+        val snapshot = BudgetCalculator.calculate(events, listOf(untilCard, nextCard), today)
+        assertEquals(LocalDate.of(2026, 9, 18), snapshot.nextPayday)
+        assertEquals(LocalDate.of(2026, 10, 2), snapshot.followingPayday)
+        assertEquals(500_00, snapshot.untilPaydayCents)
+        assertEquals(1, snapshot.untilPaydayCount)
+        assertEquals(300_00, snapshot.nextPeriodCents)
+        assertEquals(1, snapshot.nextPeriodCount)
+    }
+
+    @Test
+    fun partialsThatCoverTheBalanceClearTheCardAndOverpayStaysAtZero() {
+        val today = LocalDate.of(2026, 9, 20)
+        val events = listOf(pay(start = LocalDate.of(2026, 9, 25)))
+        val owed = card(
+            statementDay = 1,
+            amount = 1_000_00,
+            captured = LocalDate.of(2026, 9, 1),
+            daysAfter = 5,
+            name = "Overdue",
+        )
+        val half = BudgetCalculator.recordPayment(owed, 400_00)
+        val halfAgain = BudgetCalculator.recordPayment(half, 600_00)
+        val covered = BudgetCalculator.calculate(events, listOf(halfAgain), today)
+        assertEquals(0, BudgetCalculator.remainingOwed(halfAgain))
+        assertEquals(0, covered.untilPaydayCents)
+        assertEquals(0, covered.untilPaydayCount)
+
+        val overpaid = BudgetCalculator.recordPayment(owed, 1_500_00)
+        val over = BudgetCalculator.calculate(events, listOf(overpaid), today)
+        assertEquals(0, BudgetCalculator.remainingOwed(overpaid))
+        assertEquals(0, over.untilPaydayCents)
+        assertEquals(0, over.nextPeriodCents)
+
+        val cleared = BudgetCalculator.clearPayment(overpaid)
+        val restored = BudgetCalculator.calculate(events, listOf(cleared), today)
+        assertEquals(1_000_00, restored.untilPaydayCents)
+        assertEquals(1, restored.untilPaydayCount)
+    }
+
+    @Test
+    fun overdueRemainderStaysInUntilPayday() {
+        val today = LocalDate.of(2026, 9, 20)
+        val events = listOf(pay(start = LocalDate.of(2026, 9, 25)))
+        val overdue = card(
+            statementDay = 1,
+            amount = 1_000_00,
+            captured = LocalDate.of(2026, 9, 1),
+            daysAfter = 5,
+        ).let { BudgetCalculator.recordPayment(it, 250_00) }
+        val snapshot = BudgetCalculator.calculate(events, listOf(overdue), today)
+        assertEquals(750_00, snapshot.untilPaydayCents)
+        assertEquals(0, snapshot.nextPeriodCents)
+    }
+
+    @Test
+    fun newStatementBalanceDropsPaymentsFromThePreviousCycle() {
+        val card = card(
+            statementDay = 5,
+            amount = 1_000_00,
+            captured = LocalDate.of(2026, 9, 5),
+        ).let { BudgetCalculator.recordPayment(it, 500_00) }
+        val nextCycle = BudgetCalculator.applyStatementBalance(card, 800_00, "2026-10-05")
+        assertEquals(800_00, nextCycle.amountCents)
+        assertEquals(0, nextCycle.paidTowardCents)
+        assertEquals("2026-10-05", nextCycle.lastCapturedCycleKey)
+        assertEquals(800_00, BudgetCalculator.remainingOwed(nextCycle))
+
+        val sameCycle = BudgetCalculator.applyStatementBalance(card, 900_00, "2026-09-05")
+        assertEquals(500_00, sameCycle.paidTowardCents)
+        assertEquals(400_00, BudgetCalculator.remainingOwed(sameCycle))
+
+        assertEquals(0, BudgetCalculator.paidTowardForSave(card, "2026-10-05"))
+        assertEquals(500_00, BudgetCalculator.paidTowardForSave(card, "2026-09-05"))
+        assertEquals(500_00, BudgetCalculator.recordPayment(card, 0).paidTowardCents)
+    }
+
+    @Test
     fun statementPromptQueuesUncapturedCards() {
         val today = LocalDate.of(2026, 9, 25)
         val captured = card(
@@ -376,5 +470,6 @@ class BudgetLogicTest {
         dueDay = 10,
         amountCents = amount,
         lastCapturedCycleKey = captured?.toString(),
+        paidTowardCents = 0,
     )
 }

@@ -81,9 +81,22 @@ class BudgetViewModel(private val repository: BudgetRepository) : ViewModel() {
     fun captureStatement(cardId: Long, amountCents: Long, cycleKey: String) {
         viewModelScope.launch {
             val card = repository.getCard(cardId) ?: return@launch
-            repository.upsertCard(
-                card.copy(amountCents = amountCents, lastCapturedCycleKey = cycleKey),
-            )
+            repository.upsertCard(BudgetCalculator.applyStatementBalance(card, amountCents, cycleKey))
+        }
+    }
+
+    fun recordCardPayment(cardId: Long, paymentCents: Long) {
+        if (paymentCents <= 0L) return
+        viewModelScope.launch {
+            val card = repository.getCard(cardId) ?: return@launch
+            repository.upsertCard(BudgetCalculator.recordPayment(card, paymentCents))
+        }
+    }
+
+    fun clearCardPayment(cardId: Long) {
+        viewModelScope.launch {
+            val card = repository.getCard(cardId) ?: return@launch
+            repository.upsertCard(BudgetCalculator.clearPayment(card))
         }
     }
 
@@ -121,7 +134,10 @@ class BudgetViewModel(private val repository: BudgetRepository) : ViewModel() {
 
     fun saveCard(card: CreditCardEntity, onDone: () -> Unit = {}) {
         viewModelScope.launch {
-            repository.upsertCard(card)
+            val existing = if (card.id == 0L) null else repository.getCard(card.id)
+            repository.upsertCard(
+                card.copy(paidTowardCents = BudgetCalculator.paidTowardForSave(existing, card.lastCapturedCycleKey)),
+            )
             onDone()
         }
     }

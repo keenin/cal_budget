@@ -54,7 +54,7 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                "A marked-paid bill date is left out of both. Paycheck amounts are not part of either number. A pay schedule only marks when you get paid.",
+                "A marked-paid bill date is left out of both. A partial card payment reduces only the unpaid remainder, in whichever number that due date falls in. Saving the next statement balance clears those payments. Paycheck amounts are not part of either number.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

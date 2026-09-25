@@ -1,5 +1,6 @@
 package com.keenin.calbudget.data.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.TypeConverter
@@ -56,6 +57,9 @@ data class CreditCardEntity(
     val notes: String = "",
     /** ISO date of the statement this balance belongs to, or null if not captured. */
     val lastCapturedCycleKey: String? = null,
+    /** Payments already applied to [amountCents] for [lastCapturedCycleKey]. */
+    @ColumnInfo(defaultValue = "0")
+    val paidTowardCents: Long = 0,
 )
 
 class Converters {
