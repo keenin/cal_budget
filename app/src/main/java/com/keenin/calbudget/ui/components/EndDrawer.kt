@@ -22,11 +22,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ReceiptLong
-import androidx.compose.material.icons.filled.AccountBalance
-import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -50,10 +46,10 @@ private data class DrawerDestination(
 
 private val destinations = listOf(
     DrawerDestination(Routes.HOME, "Home", Icons.Filled.Home),
-    DrawerDestination(Routes.BILLS, "Bills", Icons.AutoMirrored.Filled.ReceiptLong),
-    DrawerDestination(Routes.CARDS, "Credit cards", Icons.Filled.CreditCard),
-    DrawerDestination(Routes.MORTGAGE, "Mortgage / housing", Icons.Filled.AccountBalance),
-    DrawerDestination(Routes.PAY, "Pay schedule", Icons.Filled.Payments),
+    DrawerDestination(Routes.BILLS, "Bills", AppIcons.Receipt),
+    DrawerDestination(Routes.CARDS, "Credit cards", AppIcons.CreditCard),
+    DrawerDestination(Routes.MORTGAGE, "Mortgage / housing", AppIcons.AccountBalance),
+    DrawerDestination(Routes.PAY, "Pay schedule", AppIcons.Payments),
     DrawerDestination(Routes.SETTINGS, "Settings", Icons.Filled.Settings),
 )
 
