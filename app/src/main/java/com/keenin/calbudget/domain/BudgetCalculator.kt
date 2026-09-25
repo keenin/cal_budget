@@ -291,6 +291,7 @@ object BudgetCalculator {
             val remaining = remainingOwed(card)
             if (remaining <= 0L) continue
             val due = balanceDueDate(card, today)
+            if (card.autoPay && !due.isAfter(today)) continue
             val earlierThanWindow = !includeEarlierCards && due.isBefore(from)
             if (earlierThanWindow || due.isAfter(to)) continue
             lines += ObligationLine(

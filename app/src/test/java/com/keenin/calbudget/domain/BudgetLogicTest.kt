@@ -528,6 +528,79 @@ class BudgetLogicTest {
     }
 
     @Test
+    fun automaticCardPaymentDropsTheRemainderOnTheDueDate() {
+        val payday = listOf(pay(start = LocalDate.of(2026, 9, 4)))
+        val today = LocalDate.of(2026, 9, 10)
+        val dueToday = card(
+            statementDay = 20,
+            amount = 200_00,
+            captured = LocalDate.of(2026, 8, 20),
+            daysAfter = 21,
+            name = "Due today",
+        ).copy(autoPay = true)
+        val dueYesterday = card(
+            id = 2,
+            statementDay = 19,
+            amount = 300_00,
+            captured = LocalDate.of(2026, 8, 19),
+            daysAfter = 21,
+            name = "Due yesterday",
+        ).copy(autoPay = true)
+        val dueTomorrow = card(
+            id = 3,
+            statementDay = 21,
+            amount = 400_00,
+            captured = LocalDate.of(2026, 8, 21),
+            daysAfter = 21,
+            name = "Due tomorrow",
+        ).copy(autoPay = true)
+        val manualOverdue = card(
+            id = 4,
+            statementDay = 1,
+            amount = 500_00,
+            captured = LocalDate.of(2026, 9, 1),
+            daysAfter = 5,
+            name = "Manual overdue",
+        )
+        val snapshot = BudgetCalculator.calculate(
+            payday,
+            listOf(dueToday, dueYesterday, dueTomorrow, manualOverdue),
+            today,
+        )
+        assertEquals(LocalDate.of(2026, 9, 10), BudgetCalculator.balanceDueDate(dueToday, today))
+        assertEquals(LocalDate.of(2026, 9, 9), BudgetCalculator.balanceDueDate(dueYesterday, today))
+        assertEquals(LocalDate.of(2026, 9, 11), BudgetCalculator.balanceDueDate(dueTomorrow, today))
+        assertEquals(LocalDate.of(2026, 9, 6), BudgetCalculator.balanceDueDate(manualOverdue, today))
+        assertEquals(
+            listOf(
+                line("Manual overdue", LocalDate.of(2026, 9, 6), 500_00, overdue = true, source = ObligationSource.CARD, sourceId = 4),
+                line("Due tomorrow", LocalDate.of(2026, 9, 11), 400_00, source = ObligationSource.CARD, sourceId = 3),
+            ),
+            snapshot.untilPayday,
+        )
+
+        val partial = BudgetCalculator.recordPayment(dueTomorrow, 100_00)
+        val reduced = BudgetCalculator.calculate(payday, listOf(partial), today)
+        assertEquals(300_00, BudgetCalculator.remainingOwed(partial))
+        assertEquals(
+            listOf(line("Due tomorrow", LocalDate.of(2026, 9, 11), 300_00, source = ObligationSource.CARD, sourceId = 3)),
+            reduced.untilPayday,
+        )
+        val onDueDate = BudgetCalculator.calculate(payday, listOf(partial), LocalDate.of(2026, 9, 11))
+        assertTrue(onDueDate.untilPayday.isEmpty())
+        assertEquals(300_00, BudgetCalculator.remainingOwed(partial))
+
+        val nextCycle = BudgetCalculator.applyStatementBalance(partial, 800_00, "2026-09-21")
+        assertEquals(0, nextCycle.paidTowardCents)
+        assertTrue(nextCycle.autoPay)
+        val afterStatement = BudgetCalculator.calculate(payday, listOf(nextCycle), LocalDate.of(2026, 9, 21))
+        assertEquals(
+            listOf(line("Due tomorrow", LocalDate.of(2026, 10, 12), 800_00, source = ObligationSource.CARD, sourceId = 3)),
+            afterStatement.nextPeriod,
+        )
+    }
+
+    @Test
     fun newStatementBalanceDropsPaymentsFromThePreviousCycle() {
         val card = card(
             statementDay = 5,
