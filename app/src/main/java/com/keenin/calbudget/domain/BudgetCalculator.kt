@@ -13,6 +13,11 @@ enum class ObligationSource {
     CARD,
 }
 
+data class BillPayChoices(
+    val markOn: LocalDate?,
+    val canUndo: Boolean,
+)
+
 data class ObligationLine(
     val name: String,
     val due: LocalDate,
@@ -200,6 +205,20 @@ object BudgetCalculator {
         return Schedule.occurrencesBetween(event, from, to).filter { date ->
             paidThrough == null || date.toEpochDay() > paidThrough
         }
+    }
+
+    /**
+     * What the breakdown sheet should offer for one bill or housing row.
+     * [markOn] is the next unpaid date when this row is still unpaid. Undo is available
+     * once any occurrence has been marked paid.
+     */
+    fun billPayChoices(event: CashEventEntity, rowDue: LocalDate, today: LocalDate): BillPayChoices {
+        val paidThrough = event.paidThroughEpochDay
+        val rowPaid = paidThrough != null && rowDue.toEpochDay() <= paidThrough
+        return BillPayChoices(
+            markOn = if (rowPaid) null else nextUnpaidOccurrence(event, today),
+            canUndo = paidThrough != null,
+        )
     }
 
     /** Next due date that is not covered by [CashEventEntity.paidThroughEpochDay]. */
