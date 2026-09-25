@@ -25,7 +25,7 @@ The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 - **Bills and mortgage / housing.** Same recurrence options, plus a name, amount, and optional notes.
 - **Credit cards.** Each card has a name, statement day, when the payment is due (days after the statement, or a day of the month), and the amount owed. You can edit that balance any time.
 - **Statement prompt.** The first time you open the app on or after a card’s statement date, if you have not entered that cycle’s balance, a dialog asks for the statement balance before the home number appears. Cards that still need a balance are shown one after another. Skip is only for this visit; the next launch asks again until you save a balance.
-- **Settings.** Explains the formula, notes that light and dark follow the system, and can erase all on-device data.
+- **Settings.** Explains the formula, lets you choose system, light, or dark appearance, and can erase all on-device data.
 
 Data is stored with Room on the device. There is no account, backend, or network.
 
@@ -33,4 +33,4 @@ Data is stored with Room on the device. There is no account, backend, or network
 
 Add every bill and housing occurrence due from today through the next payday, including both ends. Add each credit card’s current statement balance when that payment is due on or before payday. A card balance that is already past due stays in the total until you update it. Income is not part of the total. A pay schedule only supplies the next payday.
 
-If today is a payday, the window runs through the following payday, so the number is what you need until more pay arrives. If no pay schedule is saved, the home screen explains how to add one from the menu.
+If today is a payday, the window runs through the following payday, so the number is what you need until more pay arrives. If no pay schedule is saved, the home screen shows $0.00. Open the menu and choose Pay schedule to set when you get paid.
