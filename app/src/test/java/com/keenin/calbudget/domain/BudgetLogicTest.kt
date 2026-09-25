@@ -600,6 +600,30 @@ class BudgetLogicTest {
     }
 
     @Test
+    fun billPayChoicesMarkTheNextUnpaidAndUndoAfterItIsPaid() {
+        val today = LocalDate.of(2026, 9, 10)
+        val bill = event(
+            kind = EventKind.BILL,
+            recurrence = RecurrenceType.WEEKLY,
+            start = LocalDate.of(2026, 9, 11),
+            amount = 40_00,
+            name = "Groceries",
+        )
+        val laterRow = BudgetCalculator.billPayChoices(bill, LocalDate.of(2026, 9, 18), today)
+        assertEquals(LocalDate.of(2026, 9, 11), laterRow.markOn)
+        assertEquals(false, laterRow.canUndo)
+
+        val paid = bill.copy(paidThroughEpochDay = LocalDate.of(2026, 9, 11).toEpochDay())
+        val markedRow = BudgetCalculator.billPayChoices(paid, LocalDate.of(2026, 9, 11), today)
+        assertNull(markedRow.markOn)
+        assertEquals(true, markedRow.canUndo)
+
+        val stillOpen = BudgetCalculator.billPayChoices(paid, LocalDate.of(2026, 9, 18), today)
+        assertEquals(LocalDate.of(2026, 9, 18), stillOpen.markOn)
+        assertEquals(true, stillOpen.canUndo)
+    }
+
+    @Test
     fun breakdownLinePointsAtTheBillMortgageOrCard() {
         val today = LocalDate.of(2026, 9, 10)
         val bill = event(
