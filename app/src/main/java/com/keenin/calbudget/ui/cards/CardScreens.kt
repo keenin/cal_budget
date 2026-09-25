@@ -24,6 +24,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -125,7 +126,7 @@ private fun CardRow(
                 Column(Modifier.weight(1f)) {
                     Text(card.name, style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "Statement day ${card.statementDay} · $dueLabel",
+                        "Statement day ${card.statementDay} · $dueLabel" + if (card.autoPay) " · Automatic" else "",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 2.dp),
@@ -232,6 +233,7 @@ fun CardEditScreen(
     var dueDayText by rememberSaveable { mutableStateOf("10") }
     var amount by rememberSaveable { mutableStateOf("") }
     var notes by rememberSaveable { mutableStateOf("") }
+    var autoPay by rememberSaveable { mutableStateOf(false) }
     var loaded by rememberSaveable { mutableStateOf(false) }
     var nameError by rememberSaveable { mutableStateOf<String?>(null) }
     var statementError by rememberSaveable { mutableStateOf<String?>(null) }
@@ -248,6 +250,7 @@ fun CardEditScreen(
             dueDayText = existing.dueDay.toString()
             amount = if (existing.amountCents > 0L) Money.toInput(existing.amountCents) else ""
             notes = existing.notes
+            autoPay = existing.autoPay
             loaded = true
         } else if (!loaded && cardId == null) {
             loaded = true
@@ -364,6 +367,24 @@ fun CardEditScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Automatic payment", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Counts until the payment due date. On that day the unpaid remainder is treated as paid and drops off the home totals.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = autoPay,
+                    onCheckedChange = { autoPay = it },
+                    modifier = Modifier.padding(start = 12.dp),
+                )
+            }
             if (existing != null && (existing.amountCents > 0L || existing.paidTowardCents > 0L)) {
                 CardPaymentControls(
                     card = existing,
@@ -425,6 +446,7 @@ fun CardEditScreen(
                             notes = notes.trim(),
                             lastCapturedCycleKey = cycleKey,
                             paidTowardCents = BudgetCalculator.paidTowardForSave(existing, cycleKey),
+                            autoPay = autoPay,
                         ),
                         onBack,
                     )

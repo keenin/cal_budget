@@ -168,6 +168,7 @@ private fun EventRow(
     }
     val subtitle = buildString {
         append(Schedule.recurrenceLabel(event))
+        if (event.autoPay) append(" · Automatic")
         append(" · ")
         append(
             when {
@@ -262,6 +263,7 @@ fun EventEditScreen(
     var ongoing by rememberSaveable { mutableStateOf(true) }
     var endEpoch by rememberSaveable { mutableStateOf(ui.today.plusYears(1).toEpochDay()) }
     var notes by rememberSaveable { mutableStateOf("") }
+    var autoPay by rememberSaveable { mutableStateOf(false) }
     var loaded by rememberSaveable { mutableStateOf(false) }
     var nameError by rememberSaveable { mutableStateOf<String?>(null) }
     var amountError by rememberSaveable { mutableStateOf<String?>(null) }
@@ -280,6 +282,7 @@ fun EventEditScreen(
             ongoing = existing.endEpochDay == null
             endEpoch = existing.endEpochDay ?: LocalDate.ofEpochDay(existing.startEpochDay).plusYears(1).toEpochDay()
             notes = existing.notes
+            autoPay = existing.autoPay
             loaded = true
         } else if (!loaded && eventId == null) {
             loaded = true
@@ -432,6 +435,26 @@ fun EventEditScreen(
                 }
                 Switch(checked = ongoing, onCheckedChange = { ongoing = it })
             }
+            if (!scheduleOnly) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Automatic payment", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "Counts until the due date. On that day it is treated as paid and drops off the home totals.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = autoPay,
+                        onCheckedChange = { autoPay = it },
+                        modifier = Modifier.padding(start = 12.dp),
+                    )
+                }
+            }
             if (!ongoing) {
                 DateField(
                     label = "End date",
@@ -488,6 +511,7 @@ fun EventEditScreen(
                             endEpochDay = if (ongoing) null else endEpoch,
                             notes = notes.trim(),
                             paidThroughEpochDay = existing?.paidThroughEpochDay,
+                            autoPay = !scheduleOnly && autoPay,
                         ),
                         onBack,
                     )
