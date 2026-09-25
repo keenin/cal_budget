@@ -600,6 +600,20 @@ class BudgetLogicTest {
     }
 
     @Test
+    fun payingTheUnpaidRemainderClearsTheCard() {
+        val halfPaid = card(
+            statementDay = 5,
+            amount = 1_000_00,
+            captured = LocalDate.of(2026, 9, 5),
+        ).let { BudgetCalculator.recordPayment(it, 400_00) }
+        val remainder = BudgetCalculator.remainingOwed(halfPaid)
+        val paidOff = BudgetCalculator.recordPayment(halfPaid, remainder)
+        assertEquals(600_00, remainder)
+        assertEquals(0, BudgetCalculator.remainingOwed(paidOff))
+        assertEquals(1_000_00, paidOff.paidTowardCents)
+    }
+
+    @Test
     fun billPayChoicesMarkTheNextUnpaidAndUndoAfterItIsPaid() {
         val today = LocalDate.of(2026, 9, 10)
         val bill = event(

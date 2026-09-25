@@ -16,6 +16,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -304,6 +305,12 @@ private fun CardPayActions(
         )
     }
     if (remaining > 0L) {
+        Button(
+            onClick = { onRecordPayment(remaining) },
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        ) {
+            Text("Paid")
+        }
         MoneyField(
             label = "Payment",
             value = payment,
@@ -313,12 +320,12 @@ private fun CardPayActions(
             },
             error = error,
         )
-        Button(
+        OutlinedButton(
             onClick = {
                 val parsed = Money.parse(payment)
                 if (parsed == null || parsed <= 0L) {
                     error = "Enter a payment amount"
-                    return@Button
+                    return@OutlinedButton
                 }
                 onRecordPayment(parsed)
                 payment = ""
