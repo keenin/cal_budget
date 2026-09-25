@@ -1,7 +1,11 @@
 package com.keenin.calbudget.ui.home
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
@@ -33,11 +37,8 @@ fun HomeScreen(
     onSkipCapture: (Long) -> Unit,
 ) {
     val prompt = ui.prompts.firstOrNull()
-    val amount = if (ui.loading || ui.snapshot.nextPayday == null) {
-        Money.format(0)
-    } else {
-        Money.format(ui.snapshot.amountCents)
-    }
+    val untilPayday = Money.format(if (ui.snapshot.nextPayday == null) 0 else ui.snapshot.untilPaydayCents)
+    val nextPeriod = Money.format(if (ui.snapshot.followingPayday == null) 0 else ui.snapshot.nextPeriodCents)
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -68,7 +69,7 @@ fun HomeScreen(
             contentAlignment = Alignment.Center,
         ) {
             if (!ui.loading) {
-                AmountOnly(amount)
+                TwoAmounts(untilPayday, nextPeriod)
             }
         }
     }
@@ -86,22 +87,45 @@ fun HomeScreen(
 }
 
 @Composable
-private fun AmountOnly(amount: String) {
-    val size = when {
-        amount.length >= 14 -> 40.sp
-        amount.length >= 12 -> 48.sp
-        amount.length >= 10 -> 56.sp
-        else -> 64.sp
+private fun TwoAmounts(untilPayday: String, nextPeriod: String) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        PeriodAmount(label = "Until payday", amount = untilPayday, primary = true)
+        Spacer(Modifier.height(36.dp))
+        PeriodAmount(label = "Next period", amount = nextPeriod, primary = false)
     }
-    Text(
-        amount,
-        style = MaterialTheme.typography.displayLarge.copy(
-            fontSize = size,
-            lineHeight = size * 1.05f,
-            fontWeight = FontWeight.Bold,
-        ),
-        color = MaterialTheme.colorScheme.onBackground,
-        textAlign = TextAlign.Center,
-        maxLines = 1,
-    )
+}
+
+@Composable
+private fun PeriodAmount(label: String, amount: String, primary: Boolean) {
+    val size = amountSize(amount, primary)
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(if (primary) 8.dp else 4.dp))
+        Text(
+            amount,
+            style = MaterialTheme.typography.displayLarge.copy(
+                fontSize = size,
+                lineHeight = size * 1.05f,
+                fontWeight = if (primary) FontWeight.Bold else FontWeight.SemiBold,
+            ),
+            color = MaterialTheme.colorScheme.onBackground,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+        )
+    }
+}
+
+private fun amountSize(amount: String, primary: Boolean) = when {
+    amount.length >= 14 -> if (primary) 36.sp else 28.sp
+    amount.length >= 12 -> if (primary) 44.sp else 32.sp
+    amount.length >= 10 -> if (primary) 52.sp else 36.sp
+    else -> if (primary) 64.sp else 40.sp
 }

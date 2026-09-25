@@ -36,7 +36,14 @@ data class BudgetUi(
                 events = emptyList(),
                 cards = emptyList(),
                 today = today,
-                snapshot = BudgetSnapshot(null, 0, 0),
+                snapshot = BudgetSnapshot(
+                    nextPayday = null,
+                    followingPayday = null,
+                    untilPaydayCents = 0,
+                    nextPeriodCents = 0,
+                    untilPaydayCount = 0,
+                    nextPeriodCount = 0,
+                ),
                 prompts = emptyList(),
             )
         }

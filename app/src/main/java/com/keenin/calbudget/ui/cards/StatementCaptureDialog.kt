@@ -87,7 +87,7 @@ fun StatementCaptureDialog(
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Enter the statement balance. Use 0 if nothing is owed. It counts toward what you need until payday when the payment falls in that window.",
+                    "Enter the statement balance. Use 0 if nothing is owed. It counts toward Until payday or Next period, depending on when the payment is due.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
