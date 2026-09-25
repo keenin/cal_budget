@@ -6,7 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.keenin.calbudget.data.BudgetRepository
 import com.keenin.calbudget.data.db.CashEventEntity
 import com.keenin.calbudget.data.db.CreditCardEntity
+import com.keenin.calbudget.data.db.EventKind
 import com.keenin.calbudget.domain.BudgetCalculator
+import com.keenin.calbudget.domain.Schedule
 import com.keenin.calbudget.domain.BudgetSnapshot
 import com.keenin.calbudget.domain.StatementPrompt
 import java.time.LocalDate
@@ -75,6 +77,24 @@ class BudgetViewModel(private val repository: BudgetRepository) : ViewModel() {
             repository.upsertCard(
                 card.copy(amountCents = amountCents, lastCapturedCycleKey = cycleKey),
             )
+        }
+    }
+
+    fun markNextOccurrencePaid(id: Long) {
+        viewModelScope.launch {
+            val event = repository.getEvent(id) ?: return@launch
+            if (event.kind == EventKind.PAY) return@launch
+            val next = BudgetCalculator.nextUnpaidOccurrence(event, today.value) ?: return@launch
+            repository.upsertEvent(event.copy(paidThroughEpochDay = next.toEpochDay()))
+        }
+    }
+
+    fun undoLastPaidOccurrence(id: Long) {
+        viewModelScope.launch {
+            val event = repository.getEvent(id) ?: return@launch
+            val paidThrough = event.paidThroughEpochDay ?: return@launch
+            val previous = Schedule.previousStrictlyBefore(event, LocalDate.ofEpochDay(paidThrough))
+            repository.upsertEvent(event.copy(paidThroughEpochDay = previous?.toEpochDay()))
         }
     }
 

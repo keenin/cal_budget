@@ -40,6 +40,8 @@ data class CashEventEntity(
     val startEpochDay: Long,
     val endEpochDay: Long? = null,
     val notes: String = "",
+    /** Occurrences on or before this date are paid and do not count toward the home total. */
+    val paidThroughEpochDay: Long? = null,
 )
 
 @Entity(tableName = "credit_cards")

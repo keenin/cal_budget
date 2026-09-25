@@ -1,5 +1,6 @@
 package com.keenin.calbudget.ui.events
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -40,6 +41,7 @@ import com.keenin.calbudget.data.db.CashEventEntity
 import com.keenin.calbudget.data.db.CustomUnit
 import com.keenin.calbudget.data.db.EventKind
 import com.keenin.calbudget.data.db.RecurrenceType
+import com.keenin.calbudget.domain.BudgetCalculator
 import com.keenin.calbudget.domain.Money
 import com.keenin.calbudget.domain.Schedule
 import com.keenin.calbudget.ui.BudgetUi
@@ -109,6 +111,8 @@ fun EventListScreen(
     onOpenMenu: () -> Unit,
     onAdd: () -> Unit,
     onOpen: (Long) -> Unit,
+    onMarkPaid: (Long) -> Unit,
+    onUndoPaid: (Long) -> Unit,
 ) {
     val copy = copyFor(kind)
     val events = ui.events.filter { it.kind == kind }
@@ -136,7 +140,13 @@ fun EventListScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 items(events, key = { it.id }) { event ->
-                    EventRow(event = event, today = ui.today, onClick = { onOpen(event.id) })
+                    EventRow(
+                        event = event,
+                        today = ui.today,
+                        onClick = { onOpen(event.id) },
+                        onMarkPaid = { onMarkPaid(event.id) },
+                        onUndoPaid = { onUndoPaid(event.id) },
+                    )
                 }
             }
         }
@@ -144,33 +154,85 @@ fun EventListScreen(
 }
 
 @Composable
-private fun EventRow(event: CashEventEntity, today: LocalDate, onClick: () -> Unit) {
-    val next = Schedule.nextOnOrAfter(event, today)
+private fun EventRow(
+    event: CashEventEntity,
+    today: LocalDate,
+    onClick: () -> Unit,
+    onMarkPaid: () -> Unit,
+    onUndoPaid: () -> Unit,
+) {
+    val nextUnpaid = if (event.kind == EventKind.PAY) {
+        Schedule.nextOnOrAfter(event, today)
+    } else {
+        BudgetCalculator.nextUnpaidOccurrence(event, today)
+    }
     val subtitle = buildString {
         append(Schedule.recurrenceLabel(event))
         append(" · ")
-        append(if (next == null) "Ended" else "next ${next.format(listDate)}")
+        append(
+            when {
+                nextUnpaid != null -> "next ${nextUnpaid.format(listDate)}"
+                event.paidThroughEpochDay != null -> "Paid"
+                else -> "Ended"
+            },
+        )
     }
-    OutlinedCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
-        Row(
-            Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(event.name, style = MaterialTheme.typography.titleMedium)
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
+    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onClick)
+                    .padding(vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(event.name, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        subtitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+                if (event.kind != EventKind.PAY) {
+                    Text(
+                        Money.format(event.amountCents),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
             }
             if (event.kind != EventKind.PAY) {
-                Text(
-                    Money.format(event.amountCents),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
+                PaidActions(
+                    event = event,
+                    today = today,
+                    onMarkPaid = onMarkPaid,
+                    onUndoPaid = onUndoPaid,
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PaidActions(
+    event: CashEventEntity,
+    today: LocalDate,
+    onMarkPaid: () -> Unit,
+    onUndoPaid: () -> Unit,
+) {
+    val nextUnpaid = BudgetCalculator.nextUnpaidOccurrence(event, today)
+    if (nextUnpaid == null && event.paidThroughEpochDay == null) return
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        if (nextUnpaid != null) {
+            TextButton(onClick = onMarkPaid) {
+                Text("Mark paid")
+            }
+        }
+        if (event.paidThroughEpochDay != null) {
+            TextButton(onClick = onUndoPaid) {
+                Text("Undo paid")
             }
         }
     }
@@ -185,6 +247,8 @@ fun EventEditScreen(
     onBack: () -> Unit,
     onSave: (CashEventEntity, onDone: () -> Unit) -> Unit,
     onDelete: (Long, onDone: () -> Unit) -> Unit,
+    onMarkPaid: (Long) -> Unit = {},
+    onUndoPaid: (Long) -> Unit = {},
 ) {
     val copy = copyFor(kind)
     val existing = ui.events.firstOrNull { it.id == eventId }
@@ -250,6 +314,24 @@ fun EventEditScreen(
                     copy.helper,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (!scheduleOnly && existing != null) {
+                val nextUnpaid = BudgetCalculator.nextUnpaidOccurrence(existing, ui.today)
+                Text(
+                    if (nextUnpaid == null) {
+                        "Nothing left to pay on this schedule."
+                    } else {
+                        "Next due ${nextUnpaid.format(listDate)}. Mark it paid if you already covered it."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                PaidActions(
+                    event = existing,
+                    today = ui.today,
+                    onMarkPaid = { onMarkPaid(existing.id) },
+                    onUndoPaid = { onUndoPaid(existing.id) },
                 )
             }
             OutlinedTextField(
@@ -405,6 +487,7 @@ fun EventEditScreen(
                             startEpochDay = startEpoch,
                             endEpochDay = if (ongoing) null else endEpoch,
                             notes = notes.trim(),
+                            paidThroughEpochDay = existing?.paidThroughEpochDay,
                         ),
                         onBack,
                     )

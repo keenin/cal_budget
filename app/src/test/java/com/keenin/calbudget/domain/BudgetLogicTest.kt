@@ -162,6 +162,41 @@ class BudgetLogicTest {
     }
 
     @Test
+    fun paidOccurrenceIsSkippedAndTheNextOneStillCounts() {
+        val today = LocalDate.of(2026, 9, 10)
+        val bill = event(
+            kind = EventKind.BILL,
+            recurrence = RecurrenceType.WEEKLY,
+            start = LocalDate.of(2026, 9, 11),
+            amount = 40_00,
+            name = "Groceries",
+        )
+        val before = BudgetCalculator.calculate(listOf(pay(start = LocalDate.of(2026, 9, 4)), bill), emptyList(), today)
+        assertEquals(80_00, before.amountCents)
+        assertEquals(2, before.obligationCount)
+        assertEquals(LocalDate.of(2026, 9, 11), BudgetCalculator.nextUnpaidOccurrence(bill, today))
+
+        val paid = bill.copy(paidThroughEpochDay = LocalDate.of(2026, 9, 11).toEpochDay())
+        val after = BudgetCalculator.calculate(listOf(pay(start = LocalDate.of(2026, 9, 4)), paid), emptyList(), today)
+        assertEquals(40_00, after.amountCents)
+        assertEquals(1, after.obligationCount)
+        assertEquals(LocalDate.of(2026, 9, 18), BudgetCalculator.nextUnpaidOccurrence(paid, today))
+        assertEquals(
+            LocalDate.of(2026, 9, 11),
+            Schedule.previousStrictlyBefore(paid, LocalDate.of(2026, 9, 18)),
+        )
+        assertNull(Schedule.previousStrictlyBefore(paid, LocalDate.of(2026, 9, 11)))
+
+        val nextCycle = BudgetCalculator.calculate(
+            listOf(pay(start = LocalDate.of(2026, 10, 2)), paid),
+            emptyList(),
+            LocalDate.of(2026, 10, 1),
+        )
+        assertEquals(LocalDate.of(2026, 10, 2), nextCycle.nextPayday)
+        assertEquals(40_00, nextCycle.amountCents)
+    }
+
+    @Test
     fun payAmountIsIgnoredEvenWhenZero() {
         val today = LocalDate.of(2026, 9, 10)
         val bill = event(
