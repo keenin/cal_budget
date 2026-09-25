@@ -2,7 +2,7 @@
 
 A calm, local-only Android app that shows three numbers: what is due until the next payday, what the next paycheck needs to cover, and what is due in the period after that.
 
-The home screen stacks those amounts, each with the dates it covers (for example, Sep 19 – Oct 2). Tap any one to see the bills, housing, and card remainders that add up to it. Tap a row for a short sheet to mark that bill or housing payment paid, undo that, or record a card payment. Edit details in the sheet still opens the full form. The menus open those forms directly. Bills, credit cards, housing, pay, and settings live in the menu at the top right.
+The home screen stacks those amounts, each with the dates it covers (for example, Sep 19 – Oct 2). Tap any one to see the bills, housing, and card remainders that add up to it. Tap a row for a short sheet to mark that bill or housing payment paid, undo that, or pay a card. **Paid** on a card applies the full remainder; type an amount and use Record payment for a partial. Edit details in the sheet still opens the full form. The menus open those forms directly. Bills, credit cards, housing, pay, and settings live in the menu at the top right.
 
 ## Open and run
 
