@@ -45,6 +45,7 @@ fun HomeScreen(
     val prompt = ui.prompts.firstOrNull()
     val untilPayday = Money.format(if (ui.snapshot.nextPayday == null) 0 else ui.snapshot.untilPaydayCents)
     val nextPeriod = Money.format(if (ui.snapshot.followingPayday == null) 0 else ui.snapshot.nextPeriodCents)
+    val followingPeriod = Money.format(if (ui.snapshot.thirdPayday == null) 0 else ui.snapshot.followingPeriodCents)
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -75,11 +76,13 @@ fun HomeScreen(
             contentAlignment = Alignment.Center,
         ) {
             if (!ui.loading) {
-                TwoAmounts(
+                HomeAmounts(
                     untilPayday = untilPayday,
                     nextPeriod = nextPeriod,
+                    followingPeriod = followingPeriod,
                     onUntilPayday = { onOpenBreakdown(Routes.WINDOW_UNTIL) },
                     onNextPeriod = { onOpenBreakdown(Routes.WINDOW_NEXT) },
+                    onFollowingPeriod = { onOpenBreakdown(Routes.WINDOW_FOLLOWING) },
                 )
             }
         }
@@ -98,19 +101,23 @@ fun HomeScreen(
 }
 
 @Composable
-private fun TwoAmounts(
+private fun HomeAmounts(
     untilPayday: String,
     nextPeriod: String,
+    followingPeriod: String,
     onUntilPayday: () -> Unit,
     onNextPeriod: () -> Unit,
+    onFollowingPeriod: () -> Unit,
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         PeriodAmount(label = "Until payday", amount = untilPayday, primary = true, onClick = onUntilPayday)
-        Spacer(Modifier.height(36.dp))
+        Spacer(Modifier.height(28.dp))
         PeriodAmount(label = "Next period", amount = nextPeriod, primary = false, onClick = onNextPeriod)
+        Spacer(Modifier.height(28.dp))
+        PeriodAmount(label = "Following period", amount = followingPeriod, primary = false, onClick = onFollowingPeriod)
     }
 }
 

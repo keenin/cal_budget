@@ -13,6 +13,7 @@ object Routes {
     const val PAY_EDIT = "pay/edit/{id}"
     const val WINDOW_UNTIL = "until"
     const val WINDOW_NEXT = "next"
+    const val WINDOW_FOLLOWING = "following"
     const val BREAKDOWN = "breakdown/{window}"
 
     fun billEdit(id: Long?) = "bills/edit/${id ?: "new"}"

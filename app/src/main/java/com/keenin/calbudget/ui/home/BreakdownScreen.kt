@@ -34,9 +34,16 @@ fun BreakdownScreen(
     ui: BudgetUi,
     onBack: () -> Unit,
 ) {
-    val nextPeriod = window == Routes.WINDOW_NEXT
-    val title = if (nextPeriod) "Next period" else "Until payday"
-    val lines = if (nextPeriod) ui.snapshot.nextPeriod else ui.snapshot.untilPayday
+    val title = when (window) {
+        Routes.WINDOW_NEXT -> "Next period"
+        Routes.WINDOW_FOLLOWING -> "Following period"
+        else -> "Until payday"
+    }
+    val lines = when (window) {
+        Routes.WINDOW_NEXT -> ui.snapshot.nextPeriod
+        Routes.WINDOW_FOLLOWING -> ui.snapshot.followingPeriod
+        else -> ui.snapshot.untilPayday
+    }
     val total = lines.sumOf { it.amountCents }
     EditScaffold(title = title, onBack = onBack) { padding ->
         if (lines.isEmpty()) {

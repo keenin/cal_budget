@@ -140,8 +140,19 @@ class BudgetLogicTest {
             ),
             snapshot.nextPeriod,
         )
+        assertEquals(LocalDate.of(2026, 10, 16), snapshot.thirdPayday)
+        // Following period: weekly Oct 9 and Oct 16, plus the Oct 15 mortgage.
+        assertEquals(
+            listOf(
+                line("Groceries", LocalDate.of(2026, 10, 9), 40_00),
+                line("Mortgage", LocalDate.of(2026, 10, 15), 1_500_00),
+                line("Groceries", LocalDate.of(2026, 10, 16), 40_00),
+            ),
+            snapshot.followingPeriod,
+        )
         assertEquals(snapshot.untilPaydayCents, snapshot.untilPayday.sumOf { it.amountCents })
         assertEquals(snapshot.nextPeriodCents, snapshot.nextPeriod.sumOf { it.amountCents })
+        assertEquals(snapshot.followingPeriodCents, snapshot.followingPeriod.sumOf { it.amountCents })
     }
 
     @Test
@@ -178,8 +189,10 @@ class BudgetLogicTest {
         assertEquals(1, snapshot.untilPaydayCount)
         assertEquals(50_00, snapshot.nextPeriodCents)
         assertEquals(1, snapshot.nextPeriodCount)
+        assertEquals(LocalDate.of(2026, 10, 23), snapshot.thirdPayday)
         assertEquals(listOf(line("Overdue", LocalDate.of(2026, 9, 6), 75_00, overdue = true)), snapshot.untilPayday)
         assertEquals(listOf(line("Later", LocalDate.of(2026, 9, 30), 50_00)), snapshot.nextPeriod)
+        assertEquals(listOf(line("Beyond", LocalDate.of(2026, 10, 15), 90_00)), snapshot.followingPeriod)
     }
 
     @Test
@@ -203,6 +216,15 @@ class BudgetLogicTest {
         // Oct 2 and Oct 9 are the next period.
         assertEquals(20_00, snapshot.nextPeriodCents)
         assertEquals(2, snapshot.nextPeriodCount)
+        assertEquals(LocalDate.of(2026, 10, 23), snapshot.thirdPayday)
+        assertEquals(
+            listOf(
+                line("Item", LocalDate.of(2026, 10, 16), 10_00),
+                line("Item", LocalDate.of(2026, 10, 23), 10_00),
+            ),
+            snapshot.followingPeriod,
+        )
+        assertEquals(snapshot.followingPeriodCents, snapshot.followingPeriod.sumOf { it.amountCents })
     }
 
     @Test
@@ -282,10 +304,88 @@ class BudgetLogicTest {
         val snapshot = BudgetCalculator.calculate(emptyList(), emptyList(), LocalDate.of(2026, 9, 10))
         assertNull(snapshot.nextPayday)
         assertNull(snapshot.followingPayday)
+        assertNull(snapshot.thirdPayday)
         assertEquals(0, snapshot.untilPaydayCents)
         assertEquals(0, snapshot.nextPeriodCents)
+        assertEquals(0, snapshot.followingPeriodCents)
         assertTrue(snapshot.untilPayday.isEmpty())
         assertTrue(snapshot.nextPeriod.isEmpty())
+        assertTrue(snapshot.followingPeriod.isEmpty())
+    }
+
+    @Test
+    fun followingPeriodHoldsOnlyTheThirdWindow() {
+        val today = LocalDate.of(2026, 9, 10)
+        val events = listOf(
+            pay(start = LocalDate.of(2026, 9, 4)),
+            event(
+                kind = EventKind.BILL,
+                recurrence = RecurrenceType.MONTHLY,
+                start = LocalDate.of(2026, 10, 1),
+                amount = 80_00,
+                name = "Next only",
+            ),
+            event(
+                kind = EventKind.BILL,
+                recurrence = RecurrenceType.MONTHLY,
+                start = LocalDate.of(2026, 10, 9),
+                amount = 25_00,
+                name = "Third only",
+            ),
+            event(
+                kind = EventKind.BILL,
+                recurrence = RecurrenceType.MONTHLY,
+                start = LocalDate.of(2026, 10, 20),
+                amount = 15_00,
+                name = "Too late",
+            ),
+        )
+        val snapshot = BudgetCalculator.calculate(events, emptyList(), today)
+        assertEquals(LocalDate.of(2026, 9, 18), snapshot.nextPayday)
+        assertEquals(LocalDate.of(2026, 10, 2), snapshot.followingPayday)
+        assertEquals(LocalDate.of(2026, 10, 16), snapshot.thirdPayday)
+        assertEquals(listOf(line("Next only", LocalDate.of(2026, 10, 1), 80_00)), snapshot.nextPeriod)
+        assertEquals(listOf(line("Third only", LocalDate.of(2026, 10, 9), 25_00)), snapshot.followingPeriod)
+        assertEquals(80_00, snapshot.nextPeriodCents)
+        assertEquals(25_00, snapshot.followingPeriodCents)
+        assertEquals(snapshot.nextPeriodCents, snapshot.nextPeriod.sumOf { it.amountCents })
+        assertEquals(snapshot.followingPeriodCents, snapshot.followingPeriod.sumOf { it.amountCents })
+        assertTrue(snapshot.untilPayday.isEmpty())
+        assertTrue((snapshot.untilPayday + snapshot.nextPeriod + snapshot.followingPeriod).none { it.name == "Too late" })
+    }
+
+    @Test
+    fun noThirdPaydayLeavesFollowingPeriodEmpty() {
+        val today = LocalDate.of(2026, 9, 10)
+        val twoPays = event(
+            kind = EventKind.PAY,
+            recurrence = RecurrenceType.BIWEEKLY,
+            start = LocalDate.of(2026, 9, 18),
+            end = LocalDate.of(2026, 10, 2),
+            amount = 2_000_00,
+            name = "Two pays",
+        )
+        val insideNext = event(
+            kind = EventKind.BILL,
+            recurrence = RecurrenceType.MONTHLY,
+            start = LocalDate.of(2026, 9, 25),
+            amount = 12_00,
+            name = "Inside next",
+        )
+        val afterSecond = event(
+            kind = EventKind.BILL,
+            recurrence = RecurrenceType.MONTHLY,
+            start = LocalDate.of(2026, 10, 9),
+            amount = 30_00,
+            name = "After second",
+        )
+        val snapshot = BudgetCalculator.calculate(listOf(twoPays, insideNext, afterSecond), emptyList(), today)
+        assertEquals(LocalDate.of(2026, 9, 18), snapshot.nextPayday)
+        assertEquals(LocalDate.of(2026, 10, 2), snapshot.followingPayday)
+        assertNull(snapshot.thirdPayday)
+        assertEquals(listOf(line("Inside next", LocalDate.of(2026, 9, 25), 12_00)), snapshot.nextPeriod)
+        assertTrue(snapshot.followingPeriod.isEmpty())
+        assertEquals(0, snapshot.followingPeriodCents)
     }
 
     @Test
@@ -309,9 +409,12 @@ class BudgetLogicTest {
         val snapshot = BudgetCalculator.calculate(listOf(lastPay, bill), emptyList(), today)
         assertEquals(LocalDate.of(2026, 9, 18), snapshot.nextPayday)
         assertNull(snapshot.followingPayday)
+        assertNull(snapshot.thirdPayday)
         assertEquals(25_00, snapshot.untilPaydayCents)
         assertEquals(0, snapshot.nextPeriodCents)
         assertEquals(0, snapshot.nextPeriodCount)
+        assertEquals(0, snapshot.followingPeriodCents)
+        assertTrue(snapshot.followingPeriod.isEmpty())
     }
 
     @Test
