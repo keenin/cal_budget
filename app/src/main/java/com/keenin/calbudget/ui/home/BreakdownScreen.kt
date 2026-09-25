@@ -33,6 +33,7 @@ fun BreakdownScreen(
     window: String,
     ui: BudgetUi,
     onBack: () -> Unit,
+    onOpen: (ObligationLine) -> Unit,
 ) {
     val title = when (window) {
         Routes.WINDOW_NEXT -> "Next period"
@@ -71,8 +72,8 @@ fun BreakdownScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 item { TotalHeader(total, dates) }
-                itemsIndexed(lines, key = { index, line -> "$index-${line.due.toEpochDay()}-${line.name}" }) { _, line ->
-                    ObligationRow(line)
+                itemsIndexed(lines, key = { index, line -> "$index-${line.source}-${line.sourceId}-${line.due.toEpochDay()}" }) { _, line ->
+                    ObligationRow(line, onClick = { onOpen(line) })
                 }
             }
         }
@@ -98,13 +99,13 @@ private fun TotalHeader(total: Long, dates: String?) {
 }
 
 @Composable
-private fun ObligationRow(line: ObligationLine) {
+private fun ObligationRow(line: ObligationLine, onClick: () -> Unit) {
     val whenLabel = if (line.overdue) {
         "Overdue · ${line.due.format(dueFormatter)}"
     } else {
         "Due ${line.due.format(dueFormatter)}"
     }
-    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+    OutlinedCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Row(
             Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,

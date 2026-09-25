@@ -7,11 +7,19 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+enum class ObligationSource {
+    BILL,
+    MORTGAGE,
+    CARD,
+}
+
 data class ObligationLine(
     val name: String,
     val due: LocalDate,
     val amountCents: Long,
     val overdue: Boolean,
+    val sourceId: Long,
+    val source: ObligationSource,
 )
 
 data class BudgetSnapshot(
@@ -238,6 +246,12 @@ object BudgetCalculator {
                     due = date,
                     amountCents = event.amountCents,
                     overdue = date.isBefore(today),
+                    sourceId = event.id,
+                    source = if (event.kind == EventKind.MORTGAGE) {
+                        ObligationSource.MORTGAGE
+                    } else {
+                        ObligationSource.BILL
+                    },
                 )
             }
         }
@@ -252,6 +266,8 @@ object BudgetCalculator {
                 due = due,
                 amountCents = remaining,
                 overdue = due.isBefore(today),
+                sourceId = card.id,
+                source = ObligationSource.CARD,
             )
         }
         return lines.sortedWith(compareBy({ it.due }, { it.name.lowercase() }))
