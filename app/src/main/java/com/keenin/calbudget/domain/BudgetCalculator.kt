@@ -37,7 +37,7 @@ object BudgetCalculator {
         var count = 0
         for (event in events) {
             if (event.kind == EventKind.PAY) continue
-            val dates = Schedule.occurrencesBetween(event, today, payday)
+            val dates = unpaidOccurrences(event, today, payday)
             if (dates.isNotEmpty()) {
                 total += event.amountCents * dates.size
                 count += dates.size
@@ -91,6 +91,24 @@ object BudgetCalculator {
             dueDay = card.dueDay,
             statementDate = statement,
         )
+    }
+
+    /** Occurrences in the window that are still unpaid. */
+    fun unpaidOccurrences(event: CashEventEntity, from: LocalDate, to: LocalDate): List<LocalDate> {
+        val paidThrough = event.paidThroughEpochDay
+        return Schedule.occurrencesBetween(event, from, to).filter { date ->
+            paidThrough == null || date.toEpochDay() > paidThrough
+        }
+    }
+
+    /** Next due date that is not covered by [CashEventEntity.paidThroughEpochDay]. */
+    fun nextUnpaidOccurrence(event: CashEventEntity, today: LocalDate): LocalDate? {
+        val paidThrough = event.paidThroughEpochDay?.let(LocalDate::ofEpochDay)
+        val from = when {
+            paidThrough == null || paidThrough.isBefore(today) -> today
+            else -> paidThrough.plusDays(1)
+        }
+        return Schedule.nextOnOrAfter(event, from)
     }
 
     fun nextPayday(events: List<CashEventEntity>, today: LocalDate): LocalDate? {

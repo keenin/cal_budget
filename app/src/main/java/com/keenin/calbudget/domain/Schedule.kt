@@ -30,6 +30,21 @@ object Schedule {
         return candidate
     }
 
+    /** Latest occurrence strictly before [date], if the schedule has one. */
+    fun previousStrictlyBefore(event: CashEventEntity, date: LocalDate): LocalDate? {
+        var cursor = nextOnOrAfter(event, LocalDate.ofEpochDay(event.startEpochDay)) ?: return null
+        var previous: LocalDate? = null
+        var guard = 0
+        while (cursor.isBefore(date) && guard < 10_000) {
+            previous = cursor
+            val next = nextOnOrAfter(event, cursor.plusDays(1)) ?: break
+            if (!next.isAfter(cursor)) break
+            cursor = next
+            guard++
+        }
+        return previous
+    }
+
     fun occurrencesBetween(event: CashEventEntity, from: LocalDate, to: LocalDate): List<LocalDate> {
         if (to.isBefore(from)) return emptyList()
         val dates = ArrayList<LocalDate>()

@@ -60,6 +60,8 @@ fun AppRoot(
                     onOpenMenu = { menuOpen = true },
                     onAdd = { navController.navigate(Routes.billEdit(null)) },
                     onOpen = { id -> navController.navigate(Routes.billEdit(id)) },
+                    onMarkPaid = viewModel::markNextOccurrencePaid,
+                    onUndoPaid = viewModel::undoLastPaidOccurrence,
                 )
             }
             composable(Routes.MORTGAGE) {
@@ -69,6 +71,8 @@ fun AppRoot(
                     onOpenMenu = { menuOpen = true },
                     onAdd = { navController.navigate(Routes.mortgageEdit(null)) },
                     onOpen = { id -> navController.navigate(Routes.mortgageEdit(id)) },
+                    onMarkPaid = viewModel::markNextOccurrencePaid,
+                    onUndoPaid = viewModel::undoLastPaidOccurrence,
                 )
             }
             composable(Routes.PAY) {
@@ -78,6 +82,8 @@ fun AppRoot(
                     onOpenMenu = { menuOpen = true },
                     onAdd = { navController.navigate(Routes.payEdit(null)) },
                     onOpen = { id -> navController.navigate(Routes.payEdit(id)) },
+                    onMarkPaid = {},
+                    onUndoPaid = {},
                 )
             }
             composable(Routes.CARDS) {
@@ -107,6 +113,8 @@ fun AppRoot(
                     onBack = { navController.popBackStack() },
                     onSave = { event, onDone -> viewModel.saveEvent(event, onDone) },
                     onDelete = { id, onDone -> viewModel.deleteEvent(id, onDone) },
+                    onMarkPaid = viewModel::markNextOccurrencePaid,
+                    onUndoPaid = viewModel::undoLastPaidOccurrence,
                 )
             }
             composable(
@@ -120,6 +128,8 @@ fun AppRoot(
                     onBack = { navController.popBackStack() },
                     onSave = { event, onDone -> viewModel.saveEvent(event, onDone) },
                     onDelete = { id, onDone -> viewModel.deleteEvent(id, onDone) },
+                    onMarkPaid = viewModel::markNextOccurrencePaid,
+                    onUndoPaid = viewModel::undoLastPaidOccurrence,
                 )
             }
             composable(

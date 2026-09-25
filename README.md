@@ -34,7 +34,7 @@ Output: `app/build/outputs/apk/release/app-release.apk`. For an x86_64 emulator 
 ## Using it
 
 - **Pay schedule.** Set when you get paid: weekly, biweekly, monthly, or every N days, weeks, or months. There is no paycheck amount. Pick a recent or upcoming payday as the anchor date. You can set an end date or leave it ongoing. The next payday is what the home screen counts toward. If you add more than one schedule, the soonest date wins.
-- **Bills and mortgage / housing.** Same recurrence options, plus a name, amount, and optional notes.
+- **Bills and mortgage / housing.** Same recurrence options, plus a name, amount, and optional notes. Mark the next due date paid if you pay early; that occurrence drops off the home total, and later ones still count. Undo paid clears the latest mark.
 - **Credit cards.** Each card has a name, statement day, when the payment is due (days after the statement, or a day of the month), and the amount owed. You can edit that balance any time.
 - **Statement prompt.** The first time you open the app on or after a card’s statement date, if you have not entered that cycle’s balance, a dialog asks for the statement balance before the home number appears. Cards that still need a balance are shown one after another. Skip is only for this visit; the next launch asks again until you save a balance.
 - **Settings.** Explains the formula, lets you choose system, light, or dark appearance, and can erase all on-device data.
