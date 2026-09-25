@@ -34,14 +34,26 @@ fun BreakdownScreen(
     ui: BudgetUi,
     onBack: () -> Unit,
 ) {
-    val nextPeriod = window == Routes.WINDOW_NEXT
-    val title = if (nextPeriod) "Next period" else "Until payday"
-    val lines = if (nextPeriod) ui.snapshot.nextPeriod else ui.snapshot.untilPayday
+    val title = when (window) {
+        Routes.WINDOW_NEXT -> "Next period"
+        Routes.WINDOW_FOLLOWING -> "Following period"
+        else -> "Until payday"
+    }
+    val lines = when (window) {
+        Routes.WINDOW_NEXT -> ui.snapshot.nextPeriod
+        Routes.WINDOW_FOLLOWING -> ui.snapshot.followingPeriod
+        else -> ui.snapshot.untilPayday
+    }
+    val dates = when (window) {
+        Routes.WINDOW_NEXT -> ui.snapshot.nextSpan()
+        Routes.WINDOW_FOLLOWING -> ui.snapshot.followingSpan()
+        else -> ui.snapshot.untilSpan(ui.today)
+    }
     val total = lines.sumOf { it.amountCents }
     EditScaffold(title = title, onBack = onBack) { padding ->
         if (lines.isEmpty()) {
             Column(Modifier.fillMaxSize().padding(padding)) {
-                TotalHeader(total)
+                TotalHeader(total, dates)
                 EmptyListMessage(
                     title = "Nothing due",
                     body = "No unpaid bills, housing, or card balances fall in this window.",
@@ -58,7 +70,7 @@ fun BreakdownScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                item { TotalHeader(total) }
+                item { TotalHeader(total, dates) }
                 itemsIndexed(lines, key = { index, line -> "$index-${line.due.toEpochDay()}-${line.name}" }) { _, line ->
                     ObligationRow(line)
                 }
@@ -68,13 +80,21 @@ fun BreakdownScreen(
 }
 
 @Composable
-private fun TotalHeader(total: Long) {
-    Text(
-        Money.format(total),
-        style = MaterialTheme.typography.headlineLarge,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
-    )
+private fun TotalHeader(total: Long, dates: String?) {
+    Column(Modifier.padding(horizontal = 4.dp, vertical = 8.dp)) {
+        if (dates != null) {
+            Text(
+                dates,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Text(
+            Money.format(total),
+            style = MaterialTheme.typography.headlineLarge,
+            fontWeight = FontWeight.Bold,
+        )
+    }
 }
 
 @Composable

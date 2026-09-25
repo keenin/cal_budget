@@ -4,6 +4,8 @@ import com.keenin.calbudget.data.db.CashEventEntity
 import com.keenin.calbudget.data.db.CreditCardEntity
 import com.keenin.calbudget.data.db.EventKind
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 data class ObligationLine(
     val name: String,
@@ -16,15 +18,47 @@ data class BudgetSnapshot(
     val nextPayday: LocalDate?,
     /** Payday after [nextPayday]. End of the next paycheck period. Null when none remains. */
     val followingPayday: LocalDate?,
+    /** Payday after [followingPayday]. End of the period after next. Null when none remains. */
+    val thirdPayday: LocalDate? = null,
     /** Unpaid obligations due from today through [nextPayday], inclusive. */
     val untilPayday: List<ObligationLine> = emptyList(),
     /** Unpaid obligations due strictly after [nextPayday] through [followingPayday], inclusive. */
     val nextPeriod: List<ObligationLine> = emptyList(),
+    /** Unpaid obligations due strictly after [followingPayday] through [thirdPayday], inclusive. */
+    val followingPeriod: List<ObligationLine> = emptyList(),
 ) {
     val untilPaydayCents: Long get() = untilPayday.sumOf { it.amountCents }
     val nextPeriodCents: Long get() = nextPeriod.sumOf { it.amountCents }
+    val followingPeriodCents: Long get() = followingPeriod.sumOf { it.amountCents }
     val untilPaydayCount: Int get() = untilPayday.size
     val nextPeriodCount: Int get() = nextPeriod.size
+    val followingPeriodCount: Int get() = followingPeriod.size
+
+    /** Today through [nextPayday], or null when there is no payday. */
+    fun untilSpan(today: LocalDate): String? = span(today, nextPayday)
+
+    /** The day after [nextPayday] through [followingPayday]. */
+    fun nextSpan(): String? {
+        val start = nextPayday?.plusDays(1) ?: return null
+        return span(start, followingPayday)
+    }
+
+    /** The day after [followingPayday] through [thirdPayday]. */
+    fun followingSpan(): String? {
+        val start = followingPayday?.plusDays(1) ?: return null
+        return span(start, thirdPayday)
+    }
+
+    private fun span(start: LocalDate, end: LocalDate?): String? {
+        if (end == null || end.isBefore(start)) return null
+        val startText = start.format(windowDateFormatter)
+        if (start == end) return startText
+        return "$startText – ${end.format(windowDateFormatter)}"
+    }
+
+    private companion object {
+        val windowDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("MMM d", Locale.US)
+    }
 }
 
 data class StatementPrompt(
@@ -37,12 +71,13 @@ data class StatementPrompt(
 
 object BudgetCalculator {
     /**
-     * Two obligation totals. Neither includes paycheck amounts.
+     * Three obligation totals. None includes paycheck amounts.
      *
      * Until payday: today through the next payday, inclusive. If today is a payday,
      * that next payday is the following one.
-     * Next period: strictly after that payday through the payday after it. Zero when
-     * there is no later payday.
+     * Next period: strictly after that payday through the payday after it.
+     * Following period: strictly after that second payday through the third payday.
+     * A missing later payday makes that window zero.
      */
     fun calculate(
         events: List<CashEventEntity>,
@@ -52,17 +87,25 @@ object BudgetCalculator {
         val payday = nextPayday(events, today)
             ?: return BudgetSnapshot(nextPayday = null, followingPayday = null)
         val following = paydayAfter(events, payday)
+        val third = following?.let { paydayAfter(events, it) }
         val until = windowLines(events, cards, today, today, payday, includeEarlierCards = true)
         val next = if (following == null) {
             emptyList()
         } else {
             windowLines(events, cards, today, payday.plusDays(1), following, includeEarlierCards = false)
         }
+        val afterNext = if (following == null || third == null) {
+            emptyList()
+        } else {
+            windowLines(events, cards, today, following.plusDays(1), third, includeEarlierCards = false)
+        }
         return BudgetSnapshot(
             nextPayday = payday,
             followingPayday = following,
+            thirdPayday = third,
             untilPayday = until,
             nextPeriod = next,
+            followingPeriod = afterNext,
         )
     }
 

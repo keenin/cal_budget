@@ -49,12 +49,12 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                "Next period is what is due after that payday, through the payday after it. That is what the next check needs to cover. If there is no later payday, it is $0.00.",
+                "Next period is what is due after that payday, through the payday after it. Following period is what is due after that, through the third payday. If a later payday does not exist, that number is $0.00.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                "A marked-paid bill date is left out of both. A partial card payment reduces only the unpaid remainder, in whichever number that due date falls in. Saving the next statement balance clears those payments. Paycheck amounts are not part of either number.",
+                "A marked-paid bill date is left out of all three. A partial card payment reduces only the unpaid remainder, in whichever number that due date falls in. Saving the next statement balance clears those payments. Paycheck amounts are not part of any number.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

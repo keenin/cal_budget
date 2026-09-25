@@ -90,7 +90,7 @@ fun EndDrawer(
                     modifier = Modifier.padding(start = 28.dp, end = 28.dp, top = 28.dp, bottom = 4.dp),
                 )
                 Text(
-                    "Until payday · next period",
+                    "Until payday · next · following",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 28.dp),
