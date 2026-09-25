@@ -2,7 +2,7 @@
 
 A calm, local-only Android app that shows two numbers: what is due until the next payday, and what the paycheck after that needs to cover.
 
-The home screen stacks those amounts. Bills, credit cards, housing, pay, and settings live in the menu at the top right.
+The home screen stacks those amounts. Tap either one to see the bills, housing, and card remainders that add up to it. Bills, credit cards, housing, pay, and settings live in the menu at the top right.
 
 ## Open and run
 
