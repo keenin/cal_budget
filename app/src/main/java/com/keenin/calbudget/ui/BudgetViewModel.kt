@@ -1,0 +1,124 @@
+package com.keenin.calbudget.ui
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import com.keenin.calbudget.data.BudgetRepository
+import com.keenin.calbudget.data.db.CashEventEntity
+import com.keenin.calbudget.data.db.CreditCardEntity
+import com.keenin.calbudget.domain.BudgetCalculator
+import com.keenin.calbudget.domain.BudgetSnapshot
+import com.keenin.calbudget.domain.StatementPrompt
+import java.time.LocalDate
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+
+data class BudgetUi(
+    val loading: Boolean,
+    val events: List<CashEventEntity>,
+    val cards: List<CreditCardEntity>,
+    val today: LocalDate,
+    val snapshot: BudgetSnapshot,
+    val prompts: List<StatementPrompt>,
+) {
+    companion object {
+        fun loading(): BudgetUi {
+            val today = LocalDate.now()
+            return BudgetUi(
+                loading = true,
+                events = emptyList(),
+                cards = emptyList(),
+                today = today,
+                snapshot = BudgetSnapshot(null, 0, 0),
+                prompts = emptyList(),
+            )
+        }
+    }
+}
+
+class BudgetViewModel(private val repository: BudgetRepository) : ViewModel() {
+    private val today = MutableStateFlow(LocalDate.now())
+    private val snoozedCardIds = MutableStateFlow<Set<Long>>(emptySet())
+
+    val ui: StateFlow<BudgetUi> = combine(
+        repository.observeEvents(),
+        repository.observeCards(),
+        today,
+        snoozedCardIds,
+    ) { events, cards, day, snoozed ->
+        BudgetUi(
+            loading = false,
+            events = events,
+            cards = cards,
+            today = day,
+            snapshot = BudgetCalculator.calculate(events, cards, day),
+            prompts = BudgetCalculator.pendingStatements(cards, day, snoozed),
+        )
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, BudgetUi.loading())
+
+    fun refreshToday() {
+        today.value = LocalDate.now()
+    }
+
+    fun skipStatement(cardId: Long) {
+        snoozedCardIds.update { it + cardId }
+    }
+
+    fun captureStatement(cardId: Long, amountCents: Long, cycleKey: String) {
+        viewModelScope.launch {
+            val card = repository.getCard(cardId) ?: return@launch
+            repository.upsertCard(
+                card.copy(amountCents = amountCents, lastCapturedCycleKey = cycleKey),
+            )
+        }
+    }
+
+    fun saveEvent(event: CashEventEntity, onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            repository.upsertEvent(event)
+            onDone()
+        }
+    }
+
+    fun deleteEvent(id: Long, onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            repository.deleteEvent(id)
+            onDone()
+        }
+    }
+
+    fun saveCard(card: CreditCardEntity, onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            repository.upsertCard(card)
+            onDone()
+        }
+    }
+
+    fun deleteCard(id: Long, onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            repository.deleteCard(id)
+            snoozedCardIds.update { it - id }
+            onDone()
+        }
+    }
+
+    fun clearAll(onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            repository.clearAll()
+            snoozedCardIds.value = emptySet()
+            onDone()
+        }
+    }
+}
+
+class BudgetViewModelFactory(private val repository: BudgetRepository) : ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        return BudgetViewModel(repository) as T
+    }
+}
