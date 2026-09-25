@@ -90,14 +90,14 @@ private fun copyFor(kind: EventKind): KindCopy = when (kind) {
         defaultRecurrence = RecurrenceType.MONTHLY,
     )
     EventKind.PAY -> KindCopy(
-        title = "Pay",
-        addLabel = "Add pay",
+        title = "Pay schedule",
+        addLabel = "Add schedule",
         emptyTitle = "No pay schedule",
-        emptyBody = "Add base pay. Biweekly and monthly are the usual choices. The next payday sets the home screen.",
-        editTitleNew = "New pay",
-        editTitleExisting = "Edit pay",
-        amountLabel = "Pay amount",
-        helper = "The home screen uses these dates, not this amount. Pick a recent payday as the start date so biweekly lines up.",
+        emptyBody = "Set when you get paid. Weekly, biweekly, and monthly are the usual choices. The next payday sets the home screen.",
+        editTitleNew = "New pay schedule",
+        editTitleExisting = "Edit pay schedule",
+        amountLabel = "Amount",
+        helper = "Pick a recent or upcoming payday. Cal uses the dates only, not how much you earn.",
         defaultRecurrence = RecurrenceType.BIWEEKLY,
     )
 }
@@ -165,11 +165,13 @@ private fun EventRow(event: CashEventEntity, today: LocalDate, onClick: () -> Un
                     modifier = Modifier.padding(top = 2.dp),
                 )
             }
-            Text(
-                Money.format(event.amountCents),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
+            if (event.kind != EventKind.PAY) {
+                Text(
+                    Money.format(event.amountCents),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
         }
     }
 }
@@ -186,7 +188,8 @@ fun EventEditScreen(
 ) {
     val copy = copyFor(kind)
     val existing = ui.events.firstOrNull { it.id == eventId }
-    var name by rememberSaveable { mutableStateOf("") }
+    val scheduleOnly = kind == EventKind.PAY
+    var name by rememberSaveable { mutableStateOf(if (scheduleOnly) "Payday" else "") }
     var amount by rememberSaveable { mutableStateOf("") }
     var recurrenceName by rememberSaveable { mutableStateOf(copy.defaultRecurrence.name) }
     var unitName by rememberSaveable { mutableStateOf(CustomUnit.MONTHS.name) }
@@ -255,21 +258,23 @@ fun EventEditScreen(
                     name = it.take(80)
                     nameError = null
                 },
-                label = { Text("Name") },
+                label = { Text(if (scheduleOnly) "Schedule name" else "Name") },
                 singleLine = true,
                 isError = nameError != null,
                 supportingText = nameError?.let { message -> { Text(message) } },
                 modifier = Modifier.fillMaxWidth(),
             )
-            MoneyField(
-                label = copy.amountLabel,
-                value = amount,
-                onValueChange = {
-                    amount = it
-                    amountError = null
-                },
-                error = amountError,
-            )
+            if (!scheduleOnly) {
+                MoneyField(
+                    label = copy.amountLabel,
+                    value = amount,
+                    onValueChange = {
+                        amount = it
+                        amountError = null
+                    },
+                    error = amountError,
+                )
+            }
             Text("Repeats", style = MaterialTheme.typography.titleMedium)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 RecurrenceType.entries.forEach { option ->
@@ -327,7 +332,7 @@ fun EventEditScreen(
                 )
             }
             DateField(
-                label = "Start date",
+                label = if (scheduleOnly) "Payday date" else "Start date",
                 date = LocalDate.ofEpochDay(startEpoch),
                 onDateChange = { startEpoch = it.toEpochDay() },
             )
@@ -368,14 +373,14 @@ fun EventEditScreen(
             Spacer(Modifier.height(4.dp))
             androidx.compose.material3.Button(
                 onClick = {
-                    val parsed = Money.parse(amount)
+                    val parsed = if (scheduleOnly) 0L else Money.parse(amount)
                     val interval = intervalText.toIntOrNull()
                     var ok = true
                     if (name.isBlank()) {
                         nameError = "Add a name"
                         ok = false
                     }
-                    if (parsed == null || parsed <= 0L) {
+                    if (!scheduleOnly && (parsed == null || parsed <= 0L)) {
                         amountError = "Enter an amount greater than zero"
                         ok = false
                     }
