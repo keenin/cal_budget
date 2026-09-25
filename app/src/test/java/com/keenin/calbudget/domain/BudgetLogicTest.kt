@@ -614,6 +614,92 @@ class BudgetLogicTest {
     }
 
     @Test
+    fun automaticPaymentDropsOffOnTheDueDate() {
+        val today = LocalDate.of(2026, 9, 10)
+        val dueToday = event(
+            kind = EventKind.BILL,
+            recurrence = RecurrenceType.MONTHLY,
+            start = today,
+            amount = 20_00,
+            name = "Due today",
+        ).copy(autoPay = true)
+        val dueYesterday = event(
+            kind = EventKind.BILL,
+            recurrence = RecurrenceType.MONTHLY,
+            start = LocalDate.of(2026, 9, 9),
+            amount = 30_00,
+            name = "Due yesterday",
+        ).copy(autoPay = true)
+        val dueTomorrow = event(
+            kind = EventKind.BILL,
+            recurrence = RecurrenceType.MONTHLY,
+            start = LocalDate.of(2026, 9, 11),
+            amount = 40_00,
+            name = "Due tomorrow",
+        ).copy(autoPay = true)
+        val manualToday = event(
+            kind = EventKind.BILL,
+            recurrence = RecurrenceType.MONTHLY,
+            start = today,
+            amount = 50_00,
+            name = "Manual today",
+        )
+        val autoHousing = event(
+            kind = EventKind.MORTGAGE,
+            recurrence = RecurrenceType.MONTHLY,
+            start = today,
+            amount = 100_00,
+            name = "Auto housing",
+        ).copy(autoPay = true)
+        val manualHousing = event(
+            kind = EventKind.MORTGAGE,
+            recurrence = RecurrenceType.MONTHLY,
+            start = today,
+            amount = 80_00,
+            name = "Manual housing",
+        )
+        val snapshot = BudgetCalculator.calculate(
+            listOf(
+                pay(start = LocalDate.of(2026, 9, 4)),
+                dueToday,
+                dueYesterday,
+                dueTomorrow,
+                manualToday,
+                autoHousing,
+                manualHousing,
+            ),
+            emptyList(),
+            today,
+        )
+        assertEquals(
+            listOf(
+                line("Manual housing", today, 80_00, source = ObligationSource.MORTGAGE),
+                line("Manual today", today, 50_00),
+                line("Due tomorrow", LocalDate.of(2026, 9, 11), 40_00),
+            ),
+            snapshot.untilPayday,
+        )
+        assertEquals(LocalDate.of(2026, 10, 10), BudgetCalculator.nextUnpaidOccurrence(dueToday, today))
+        assertEquals(today, BudgetCalculator.nextUnpaidOccurrence(manualToday, today))
+
+        val future = event(
+            kind = EventKind.BILL,
+            recurrence = RecurrenceType.MONTHLY,
+            start = LocalDate.of(2026, 9, 20),
+            amount = 15_00,
+            name = "Future auto",
+        ).copy(autoPay = true)
+        val open = BudgetCalculator.calculate(listOf(pay(start = LocalDate.of(2026, 9, 4)), future), emptyList(), today)
+        assertEquals(listOf(line("Future auto", LocalDate.of(2026, 9, 20), 15_00)), open.nextPeriod)
+        val paidEarly = future.copy(paidThroughEpochDay = LocalDate.of(2026, 9, 20).toEpochDay())
+        val closed = BudgetCalculator.calculate(listOf(pay(start = LocalDate.of(2026, 9, 4)), paidEarly), emptyList(), today)
+        assertTrue(closed.nextPeriod.isEmpty())
+        assertEquals(true, BudgetCalculator.billPayChoices(paidEarly, LocalDate.of(2026, 9, 20), today).canUndo)
+        val restored = BudgetCalculator.calculate(listOf(pay(start = LocalDate.of(2026, 9, 4)), future), emptyList(), today)
+        assertEquals(open.nextPeriod, restored.nextPeriod)
+    }
+
+    @Test
     fun billPayChoicesMarkTheNextUnpaidAndUndoAfterItIsPaid() {
         val today = LocalDate.of(2026, 9, 10)
         val bill = event(

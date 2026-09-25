@@ -200,11 +200,21 @@ object BudgetCalculator {
     }
 
     /** Occurrences in the window that are still unpaid. */
-    fun unpaidOccurrences(event: CashEventEntity, from: LocalDate, to: LocalDate): List<LocalDate> {
-        val paidThrough = event.paidThroughEpochDay
+    fun unpaidOccurrences(event: CashEventEntity, from: LocalDate, to: LocalDate, today: LocalDate): List<LocalDate> {
         return Schedule.occurrencesBetween(event, from, to).filter { date ->
-            paidThrough == null || date.toEpochDay() > paidThrough
+            stillOwed(event, date, today)
         }
+    }
+
+    /**
+     * An occurrence is still owed unless it was marked paid, or automatic payment
+     * has reached its due date. On the due date itself it is assumed paid.
+     */
+    fun stillOwed(event: CashEventEntity, date: LocalDate, today: LocalDate): Boolean {
+        val paidThrough = event.paidThroughEpochDay
+        if (paidThrough != null && date.toEpochDay() <= paidThrough) return false
+        if (event.autoPay && !date.isAfter(today)) return false
+        return true
     }
 
     /**
@@ -214,7 +224,7 @@ object BudgetCalculator {
      */
     fun billPayChoices(event: CashEventEntity, rowDue: LocalDate, today: LocalDate): BillPayChoices {
         val paidThrough = event.paidThroughEpochDay
-        val rowPaid = paidThrough != null && rowDue.toEpochDay() <= paidThrough
+        val rowPaid = !stillOwed(event, rowDue, today)
         return BillPayChoices(
             markOn = if (rowPaid) null else nextUnpaidOccurrence(event, today),
             canUndo = paidThrough != null,
@@ -224,9 +234,12 @@ object BudgetCalculator {
     /** Next due date that is not covered by [CashEventEntity.paidThroughEpochDay]. */
     fun nextUnpaidOccurrence(event: CashEventEntity, today: LocalDate): LocalDate? {
         val paidThrough = event.paidThroughEpochDay?.let(LocalDate::ofEpochDay)
-        val from = when {
+        var from = when {
             paidThrough == null || paidThrough.isBefore(today) -> today
             else -> paidThrough.plusDays(1)
+        }
+        if (event.autoPay && !from.isAfter(today)) {
+            from = today.plusDays(1)
         }
         return Schedule.nextOnOrAfter(event, from)
     }
@@ -259,7 +272,7 @@ object BudgetCalculator {
         val lines = ArrayList<ObligationLine>()
         for (event in events) {
             if (event.kind == EventKind.PAY) continue
-            for (date in unpaidOccurrences(event, from, to)) {
+            for (date in unpaidOccurrences(event, from, to, today)) {
                 lines += ObligationLine(
                     name = event.name,
                     due = date,

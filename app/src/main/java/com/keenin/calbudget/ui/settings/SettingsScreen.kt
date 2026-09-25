@@ -54,7 +54,7 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                "A marked-paid bill date is left out of all three. A partial card payment reduces only the unpaid remainder, in whichever number that due date falls in. Saving the next statement balance clears those payments. Paycheck amounts are not part of any number.",
+                "A marked-paid bill date is left out of all three. A bill or housing payment set to automatic payment drops off on its due date; otherwise it still counts that day. A partial card payment reduces only the unpaid remainder. Paycheck amounts are not part of any number.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

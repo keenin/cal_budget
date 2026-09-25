@@ -43,6 +43,9 @@ data class CashEventEntity(
     val notes: String = "",
     /** Occurrences on or before this date are paid and do not count toward the home total. */
     val paidThroughEpochDay: Long? = null,
+    /** When true, an occurrence is treated as paid on its due date and drops out of the totals. */
+    @ColumnInfo(defaultValue = "0")
+    val autoPay: Boolean = false,
 )
 
 @Entity(tableName = "credit_cards")
