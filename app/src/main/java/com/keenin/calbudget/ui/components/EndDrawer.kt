@@ -53,7 +53,7 @@ private val destinations = listOf(
     DrawerDestination(Routes.BILLS, "Bills", Icons.AutoMirrored.Filled.ReceiptLong),
     DrawerDestination(Routes.CARDS, "Credit cards", Icons.Filled.CreditCard),
     DrawerDestination(Routes.MORTGAGE, "Mortgage / housing", Icons.Filled.AccountBalance),
-    DrawerDestination(Routes.PAY, "Pay / income schedule", Icons.Filled.Payments),
+    DrawerDestination(Routes.PAY, "Pay schedule", Icons.Filled.Payments),
     DrawerDestination(Routes.SETTINGS, "Settings", Icons.Filled.Settings),
 )
 

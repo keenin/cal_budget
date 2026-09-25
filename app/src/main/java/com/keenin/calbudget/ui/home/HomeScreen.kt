@@ -146,20 +146,20 @@ private fun NoPayday(onSetupPay: () -> Unit) {
         )
         Spacer(Modifier.height(12.dp))
         Text(
-            "This screen shows one number: how much you need in the bank until you get paid.",
+            "This screen shows one number: what you need in the bank until your next payday.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(12.dp))
         Text(
-            "Open the menu at the top right, then choose Pay.",
+            "Open the menu at the top right, then choose Pay schedule, and set when you get paid.",
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(24.dp))
         Button(onClick = onSetupPay) {
-            Text("Set up pay")
+            Text("Set payday")
         }
     }
 }

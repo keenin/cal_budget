@@ -42,7 +42,7 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                "Paycheck amounts are not subtracted. Pay dates only decide the window. If today is payday, the window runs through the following payday.",
+                "A pay schedule only marks when you get paid. The number is bills, housing, and card payments — not income. If today is payday, the window runs through the following payday.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

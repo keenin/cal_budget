@@ -162,6 +162,24 @@ class BudgetLogicTest {
     }
 
     @Test
+    fun payAmountIsIgnoredEvenWhenZero() {
+        val today = LocalDate.of(2026, 9, 10)
+        val bill = event(
+            kind = EventKind.BILL,
+            recurrence = RecurrenceType.WEEKLY,
+            start = LocalDate.of(2026, 9, 11),
+            amount = 40_00,
+        )
+        val unpaid = pay(start = LocalDate.of(2026, 9, 4)).copy(amountCents = 0)
+        val salaried = unpaid.copy(amountCents = 5_000_00)
+        val withoutIncome = BudgetCalculator.calculate(listOf(unpaid, bill), emptyList(), today)
+        val withIncome = BudgetCalculator.calculate(listOf(salaried, bill), emptyList(), today)
+        assertEquals(LocalDate.of(2026, 9, 18), withoutIncome.nextPayday)
+        assertEquals(withoutIncome, withIncome)
+        assertEquals(80_00, withoutIncome.amountCents)
+    }
+
+    @Test
     fun noPayIsAnEmptyHome() {
         val snapshot = BudgetCalculator.calculate(emptyList(), emptyList(), LocalDate.of(2026, 9, 10))
         assertNull(snapshot.nextPayday)

@@ -21,7 +21,7 @@ The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 
 ## Using it
 
-- **Pay.** Add base pay as weekly, biweekly, monthly, or every N days, weeks, or months. The start date anchors the schedule, so for biweekly pay pick a recent payday. You can set an end date or leave it ongoing. The next payday is what the home screen counts toward. If you add more than one paycheck, the soonest date wins.
+- **Pay schedule.** Set when you get paid: weekly, biweekly, monthly, or every N days, weeks, or months. There is no paycheck amount. Pick a recent or upcoming payday as the anchor date. You can set an end date or leave it ongoing. The next payday is what the home screen counts toward. If you add more than one schedule, the soonest date wins.
 - **Bills and mortgage / housing.** Same recurrence options, plus a name, amount, and optional notes.
 - **Credit cards.** Each card has a name, statement day, when the payment is due (days after the statement, or a day of the month), and the amount owed. You can edit that balance any time.
 - **Statement prompt.** The first time you open the app on or after a card’s statement date, if you have not entered that cycle’s balance, a dialog asks for the statement balance before the home number appears. Cards that still need a balance are shown one after another. Skip is only for this visit; the next launch asks again until you save a balance.
@@ -31,6 +31,6 @@ Data is stored with Room on the device. There is no account, backend, or network
 
 ## How the home number is calculated
 
-Add every bill and housing occurrence due from today through the next payday, including both ends. Add each credit card’s current statement balance when that payment is due on or before payday. A card balance that is already past due stays in the total until you update it. Paycheck amounts are not subtracted.
+Add every bill and housing occurrence due from today through the next payday, including both ends. Add each credit card’s current statement balance when that payment is due on or before payday. A card balance that is already past due stays in the total until you update it. Income is not part of the total. A pay schedule only supplies the next payday.
 
 If today is a payday, the window runs through the following payday, so the number is what you need until more pay arrives. If no pay schedule is saved, the home screen explains how to add one from the menu.
