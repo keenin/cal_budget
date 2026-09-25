@@ -278,6 +278,68 @@ class BudgetLogicTest {
     }
 
     @Test
+    fun threePaySchedulesUseTheSoonestPayday() {
+        val today = LocalDate.of(2026, 9, 11)
+        val weeklyJob = event(
+            kind = EventKind.PAY,
+            recurrence = RecurrenceType.WEEKLY,
+            start = LocalDate.of(2026, 9, 4),
+            amount = 1_200_00,
+            name = "Weekly job",
+        )
+        val weekendJob = event(
+            kind = EventKind.PAY,
+            recurrence = RecurrenceType.BIWEEKLY,
+            start = LocalDate.of(2026, 9, 12),
+            amount = 800_00,
+            name = "Weekend job",
+        )
+        val monthlyJob = event(
+            kind = EventKind.PAY,
+            recurrence = RecurrenceType.MONTHLY,
+            start = LocalDate.of(2026, 10, 1),
+            amount = 3_000_00,
+            name = "Monthly job",
+        )
+        val inWindow = event(
+            kind = EventKind.BILL,
+            recurrence = RecurrenceType.MONTHLY,
+            start = LocalDate.of(2026, 9, 11),
+            amount = 40_00,
+            name = "Tools",
+        )
+        val nextWindow = event(
+            kind = EventKind.BILL,
+            recurrence = RecurrenceType.WEEKLY,
+            start = LocalDate.of(2026, 9, 14),
+            amount = 10_00,
+            name = "Later",
+        )
+        val afterBoth = event(
+            kind = EventKind.BILL,
+            recurrence = RecurrenceType.MONTHLY,
+            start = LocalDate.of(2026, 9, 20),
+            amount = 80_00,
+            name = "After",
+        )
+        val events = listOf(weeklyJob, weekendJob, monthlyJob, inWindow, nextWindow, afterBoth)
+        assertEquals(LocalDate.of(2026, 9, 12), BudgetCalculator.nextPayday(events, today))
+        assertEquals(
+            LocalDate.of(2026, 9, 18),
+            BudgetCalculator.paydayAfter(events, LocalDate.of(2026, 9, 12)),
+        )
+        val snapshot = BudgetCalculator.calculate(events, emptyList(), today)
+        assertEquals(LocalDate.of(2026, 9, 12), snapshot.nextPayday)
+        assertEquals(LocalDate.of(2026, 9, 18), snapshot.followingPayday)
+        assertEquals(listOf(line("Tools", LocalDate.of(2026, 9, 11), 40_00)), snapshot.untilPayday)
+        assertEquals(40_00, snapshot.untilPaydayCents)
+        assertEquals(listOf(line("Later", LocalDate.of(2026, 9, 14), 10_00)), snapshot.nextPeriod)
+        assertEquals(10_00, snapshot.nextPeriodCents)
+        assertTrue(snapshot.untilPayday.none { it.name == "After" || it.name.endsWith("job") })
+        assertTrue(snapshot.nextPeriod.none { it.name == "After" || it.name.endsWith("job") })
+    }
+
+    @Test
     fun noPayIsAnEmptyHome() {
         val snapshot = BudgetCalculator.calculate(emptyList(), emptyList(), LocalDate.of(2026, 9, 10))
         assertNull(snapshot.nextPayday)

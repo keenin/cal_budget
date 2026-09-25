@@ -94,12 +94,12 @@ private fun copyFor(kind: EventKind): KindCopy = when (kind) {
     EventKind.PAY -> KindCopy(
         title = "Pay schedule",
         addLabel = "Add schedule",
-        emptyTitle = "No pay schedule",
-        emptyBody = "Set when you get paid. Weekly, biweekly, and monthly are the usual choices. The next payday sets the home screen.",
+        emptyTitle = "No pay schedules",
+        emptyBody = "Add a schedule for each job. Weekly, biweekly, and monthly are the usual choices. The soonest payday sets the home screen.",
         editTitleNew = "New pay schedule",
         editTitleExisting = "Edit pay schedule",
         amountLabel = "Amount",
-        helper = "Pick a recent or upcoming payday. Cal uses the dates only, not how much you earn.",
+        helper = "Pick a recent or upcoming payday for this job. Add another schedule if you have more than one. Dates only, not how much you earn.",
         defaultRecurrence = RecurrenceType.BIWEEKLY,
     )
 }
