@@ -300,6 +300,37 @@ class BudgetLogicTest {
     }
 
     @Test
+    fun windowSpansUsePaydayBoundsAndOmitAMissingPayday() {
+        val today = LocalDate.of(2026, 9, 10)
+        val snapshot = BudgetCalculator.calculate(
+            listOf(pay(start = LocalDate.of(2026, 9, 4))),
+            emptyList(),
+            today,
+        )
+        assertEquals("Sep 10 – Sep 18", snapshot.untilSpan(today))
+        assertEquals("Sep 19 – Oct 2", snapshot.nextSpan())
+        assertEquals("Oct 3 – Oct 16", snapshot.followingSpan())
+
+        val ended = BudgetCalculator.calculate(
+            listOf(
+                event(
+                    kind = EventKind.PAY,
+                    recurrence = RecurrenceType.BIWEEKLY,
+                    start = LocalDate.of(2026, 9, 18),
+                    end = LocalDate.of(2026, 10, 2),
+                    name = "Two pays",
+                ),
+            ),
+            emptyList(),
+            today,
+        )
+        assertEquals("Sep 10 – Sep 18", ended.untilSpan(today))
+        assertEquals("Sep 19 – Oct 2", ended.nextSpan())
+        assertNull(ended.followingSpan())
+        assertNull(BudgetCalculator.calculate(emptyList(), emptyList(), today).untilSpan(today))
+    }
+
+    @Test
     fun noPayIsAnEmptyHome() {
         val snapshot = BudgetCalculator.calculate(emptyList(), emptyList(), LocalDate.of(2026, 9, 10))
         assertNull(snapshot.nextPayday)

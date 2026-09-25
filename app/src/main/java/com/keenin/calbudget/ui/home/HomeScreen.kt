@@ -80,6 +80,9 @@ fun HomeScreen(
                     untilPayday = untilPayday,
                     nextPeriod = nextPeriod,
                     followingPeriod = followingPeriod,
+                    untilDates = ui.snapshot.untilSpan(ui.today),
+                    nextDates = ui.snapshot.nextSpan(),
+                    followingDates = ui.snapshot.followingSpan(),
                     onUntilPayday = { onOpenBreakdown(Routes.WINDOW_UNTIL) },
                     onNextPeriod = { onOpenBreakdown(Routes.WINDOW_NEXT) },
                     onFollowingPeriod = { onOpenBreakdown(Routes.WINDOW_FOLLOWING) },
@@ -105,6 +108,9 @@ private fun HomeAmounts(
     untilPayday: String,
     nextPeriod: String,
     followingPeriod: String,
+    untilDates: String?,
+    nextDates: String?,
+    followingDates: String?,
     onUntilPayday: () -> Unit,
     onNextPeriod: () -> Unit,
     onFollowingPeriod: () -> Unit,
@@ -113,26 +119,46 @@ private fun HomeAmounts(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        PeriodAmount(label = "Until payday", amount = untilPayday, primary = true, onClick = onUntilPayday)
+        PeriodAmount(
+            label = "Until payday",
+            dates = untilDates,
+            amount = untilPayday,
+            primary = true,
+            onClick = onUntilPayday,
+        )
         Spacer(Modifier.height(28.dp))
-        PeriodAmount(label = "Next period", amount = nextPeriod, primary = false, onClick = onNextPeriod)
+        PeriodAmount(
+            label = "Next period",
+            dates = nextDates,
+            amount = nextPeriod,
+            primary = false,
+            onClick = onNextPeriod,
+        )
         Spacer(Modifier.height(28.dp))
-        PeriodAmount(label = "Following period", amount = followingPeriod, primary = false, onClick = onFollowingPeriod)
+        PeriodAmount(
+            label = "Following period",
+            dates = followingDates,
+            amount = followingPeriod,
+            primary = false,
+            onClick = onFollowingPeriod,
+        )
     }
 }
 
 @Composable
 private fun PeriodAmount(
     label: String,
+    dates: String?,
     amount: String,
     primary: Boolean,
     onClick: () -> Unit,
 ) {
     val size = amountSize(amount, primary)
+    val description = if (dates == null) "$label, $amount" else "$label, $dates, $amount"
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .semantics { contentDescription = "$label, $amount" }
+            .semantics { contentDescription = description }
             .clickable(role = Role.Button, onClick = onClick)
             .padding(vertical = 4.dp),
     ) {
@@ -142,6 +168,14 @@ private fun PeriodAmount(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
+        if (dates != null) {
+            Text(
+                dates,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
         Spacer(Modifier.height(if (primary) 8.dp else 4.dp))
         Text(
             amount,

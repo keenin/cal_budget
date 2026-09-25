@@ -4,6 +4,8 @@ import com.keenin.calbudget.data.db.CashEventEntity
 import com.keenin.calbudget.data.db.CreditCardEntity
 import com.keenin.calbudget.data.db.EventKind
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 data class ObligationLine(
     val name: String,
@@ -31,6 +33,32 @@ data class BudgetSnapshot(
     val untilPaydayCount: Int get() = untilPayday.size
     val nextPeriodCount: Int get() = nextPeriod.size
     val followingPeriodCount: Int get() = followingPeriod.size
+
+    /** Today through [nextPayday], or null when there is no payday. */
+    fun untilSpan(today: LocalDate): String? = span(today, nextPayday)
+
+    /** The day after [nextPayday] through [followingPayday]. */
+    fun nextSpan(): String? {
+        val start = nextPayday?.plusDays(1) ?: return null
+        return span(start, followingPayday)
+    }
+
+    /** The day after [followingPayday] through [thirdPayday]. */
+    fun followingSpan(): String? {
+        val start = followingPayday?.plusDays(1) ?: return null
+        return span(start, thirdPayday)
+    }
+
+    private fun span(start: LocalDate, end: LocalDate?): String? {
+        if (end == null || end.isBefore(start)) return null
+        val startText = start.format(windowDateFormatter)
+        if (start == end) return startText
+        return "$startText – ${end.format(windowDateFormatter)}"
+    }
+
+    private companion object {
+        val windowDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("MMM d", Locale.US)
+    }
 }
 
 data class StatementPrompt(
