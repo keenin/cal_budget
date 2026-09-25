@@ -6,6 +6,7 @@ import com.keenin.calbudget.data.db.CustomUnit
 import com.keenin.calbudget.data.db.DueMode
 import com.keenin.calbudget.data.db.EventKind
 import com.keenin.calbudget.data.db.RecurrenceType
+import com.keenin.calbudget.ui.nav.Routes
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -126,8 +127,8 @@ class BudgetLogicTest {
         assertEquals(
             listOf(
                 line("Groceries", LocalDate.of(2026, 9, 11), 40_00),
-                line("Mortgage", LocalDate.of(2026, 9, 15), 1_500_00),
-                line("Card", LocalDate.of(2026, 9, 17), 200_00),
+                line("Mortgage", LocalDate.of(2026, 9, 15), 1_500_00, source = ObligationSource.MORTGAGE),
+                line("Card", LocalDate.of(2026, 9, 17), 200_00, source = ObligationSource.CARD, sourceId = 1),
                 line("Groceries", LocalDate.of(2026, 9, 18), 40_00),
             ),
             snapshot.untilPayday,
@@ -145,7 +146,7 @@ class BudgetLogicTest {
         assertEquals(
             listOf(
                 line("Groceries", LocalDate.of(2026, 10, 9), 40_00),
-                line("Mortgage", LocalDate.of(2026, 10, 15), 1_500_00),
+                line("Mortgage", LocalDate.of(2026, 10, 15), 1_500_00, source = ObligationSource.MORTGAGE),
                 line("Groceries", LocalDate.of(2026, 10, 16), 40_00),
             ),
             snapshot.followingPeriod,
@@ -190,9 +191,9 @@ class BudgetLogicTest {
         assertEquals(50_00, snapshot.nextPeriodCents)
         assertEquals(1, snapshot.nextPeriodCount)
         assertEquals(LocalDate.of(2026, 10, 23), snapshot.thirdPayday)
-        assertEquals(listOf(line("Overdue", LocalDate.of(2026, 9, 6), 75_00, overdue = true)), snapshot.untilPayday)
-        assertEquals(listOf(line("Later", LocalDate.of(2026, 9, 30), 50_00)), snapshot.nextPeriod)
-        assertEquals(listOf(line("Beyond", LocalDate.of(2026, 10, 15), 90_00)), snapshot.followingPeriod)
+        assertEquals(listOf(line("Overdue", LocalDate.of(2026, 9, 6), 75_00, overdue = true, source = ObligationSource.CARD, sourceId = 2)), snapshot.untilPayday)
+        assertEquals(listOf(line("Later", LocalDate.of(2026, 9, 30), 50_00, source = ObligationSource.CARD, sourceId = 1)), snapshot.nextPeriod)
+        assertEquals(listOf(line("Beyond", LocalDate.of(2026, 10, 15), 90_00, source = ObligationSource.CARD, sourceId = 3)), snapshot.followingPeriod)
     }
 
     @Test
@@ -473,8 +474,8 @@ class BudgetLogicTest {
         assertEquals(1, snapshot.untilPaydayCount)
         assertEquals(300_00, snapshot.nextPeriodCents)
         assertEquals(1, snapshot.nextPeriodCount)
-        assertEquals(listOf(line("Card", LocalDate.of(2026, 9, 17), 500_00)), snapshot.untilPayday)
-        assertEquals(listOf(line("Next", LocalDate.of(2026, 10, 1), 300_00)), snapshot.nextPeriod)
+        assertEquals(listOf(line("Card", LocalDate.of(2026, 9, 17), 500_00, source = ObligationSource.CARD, sourceId = 1)), snapshot.untilPayday)
+        assertEquals(listOf(line("Next", LocalDate.of(2026, 10, 1), 300_00, source = ObligationSource.CARD, sourceId = 2)), snapshot.nextPeriod)
     }
 
     @Test
@@ -522,7 +523,7 @@ class BudgetLogicTest {
         val snapshot = BudgetCalculator.calculate(events, listOf(overdue), today)
         assertEquals(750_00, snapshot.untilPaydayCents)
         assertEquals(0, snapshot.nextPeriodCents)
-        assertEquals(listOf(line("Card", LocalDate.of(2026, 9, 6), 750_00, overdue = true)), snapshot.untilPayday)
+        assertEquals(listOf(line("Card", LocalDate.of(2026, 9, 6), 750_00, overdue = true, source = ObligationSource.CARD, sourceId = 1)), snapshot.untilPayday)
         assertTrue(snapshot.nextPeriod.isEmpty())
     }
 
@@ -598,8 +599,61 @@ class BudgetLogicTest {
         assertEquals("20.59", Money.sanitizeInput("20.5abc9"))
     }
 
-    private fun line(name: String, due: LocalDate, amount: Long, overdue: Boolean = false) =
-        ObligationLine(name = name, due = due, amountCents = amount, overdue = overdue)
+    @Test
+    fun breakdownLinePointsAtTheBillMortgageOrCard() {
+        val today = LocalDate.of(2026, 9, 10)
+        val bill = event(
+            kind = EventKind.BILL,
+            recurrence = RecurrenceType.WEEKLY,
+            start = LocalDate.of(2026, 9, 11),
+            amount = 40_00,
+            name = "Groceries",
+        )
+        val mortgage = event(
+            kind = EventKind.MORTGAGE,
+            recurrence = RecurrenceType.MONTHLY,
+            start = LocalDate.of(2026, 9, 15),
+            amount = 1_500_00,
+            name = "Mortgage",
+        )
+        val visa = card(
+            id = 7,
+            name = "Visa",
+            statementDay = 5,
+            amount = 200_00,
+            captured = LocalDate.of(2026, 9, 5),
+            daysAfter = 12,
+        )
+        val snapshot = BudgetCalculator.calculate(listOf(pay(start = LocalDate.of(2026, 9, 4)), bill, mortgage), listOf(visa), today)
+        val groceries = snapshot.untilPayday.first { it.name == "Groceries" }
+        val housing = snapshot.untilPayday.first { it.name == "Mortgage" }
+        val cardLine = snapshot.untilPayday.first { it.name == "Visa" }
+        assertEquals(ObligationSource.BILL, groceries.source)
+        assertEquals(bill.id, groceries.sourceId)
+        assertEquals("bills/edit/${bill.id}", Routes.forObligation(groceries))
+        assertEquals(ObligationSource.MORTGAGE, housing.source)
+        assertEquals(mortgage.id, housing.sourceId)
+        assertEquals("mortgage/edit/${mortgage.id}", Routes.forObligation(housing))
+        assertEquals(ObligationSource.CARD, cardLine.source)
+        assertEquals(7L, cardLine.sourceId)
+        assertEquals("cards/edit/7", Routes.forObligation(cardLine))
+    }
+
+    private fun line(
+        name: String,
+        due: LocalDate,
+        amount: Long,
+        overdue: Boolean = false,
+        source: ObligationSource = ObligationSource.BILL,
+        sourceId: Long = name.hashCode().toLong(),
+    ) = ObligationLine(
+        name = name,
+        due = due,
+        amountCents = amount,
+        overdue = overdue,
+        sourceId = sourceId,
+        source = source,
+    )
 
     private fun pay(start: LocalDate) = event(
         kind = EventKind.PAY,

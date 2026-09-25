@@ -1,5 +1,8 @@
 package com.keenin.calbudget.ui.nav
 
+import com.keenin.calbudget.domain.ObligationLine
+import com.keenin.calbudget.domain.ObligationSource
+
 object Routes {
     const val HOME = "home"
     const val BILLS = "bills"
@@ -21,4 +24,10 @@ object Routes {
     fun mortgageEdit(id: Long?) = "mortgage/edit/${id ?: "new"}"
     fun payEdit(id: Long?) = "pay/edit/${id ?: "new"}"
     fun breakdown(window: String) = "breakdown/$window"
+
+    fun forObligation(line: ObligationLine): String = when (line.source) {
+        ObligationSource.BILL -> billEdit(line.sourceId)
+        ObligationSource.MORTGAGE -> mortgageEdit(line.sourceId)
+        ObligationSource.CARD -> cardEdit(line.sourceId)
+    }
 }

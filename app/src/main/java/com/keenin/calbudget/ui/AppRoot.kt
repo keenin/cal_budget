@@ -63,6 +63,7 @@ fun AppRoot(
                     window = entry.arguments?.getString("window").orEmpty(),
                     ui = ui,
                     onBack = { navController.popBackStack() },
+                    onOpen = { line -> navController.navigate(Routes.forObligation(line)) },
                 )
             }
             composable(Routes.BILLS) {
