@@ -51,7 +51,7 @@ fun HomeScreen(
             TopAppBar(
                 title = {
                     Text(
-                        "Cal",
+                        "What I owe",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
