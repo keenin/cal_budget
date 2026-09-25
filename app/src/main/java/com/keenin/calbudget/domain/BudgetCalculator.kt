@@ -7,8 +7,14 @@ import java.time.LocalDate
 
 data class BudgetSnapshot(
     val nextPayday: LocalDate?,
-    val amountCents: Long,
-    val obligationCount: Int,
+    /** Payday after [nextPayday]. End of the next paycheck period. Null when none remains. */
+    val followingPayday: LocalDate?,
+    /** Unpaid obligations due from today through [nextPayday], inclusive. */
+    val untilPaydayCents: Long,
+    /** Unpaid obligations due strictly after [nextPayday] through [followingPayday], inclusive. */
+    val nextPeriodCents: Long,
+    val untilPaydayCount: Int,
+    val nextPeriodCount: Int,
 )
 
 data class StatementPrompt(
@@ -21,9 +27,12 @@ data class StatementPrompt(
 
 object BudgetCalculator {
     /**
-     * Obligations due from today through the next payday, inclusive.
-     * When today is itself a payday, the window runs through the following payday
-     * so the number is the cash needed until more pay arrives.
+     * Two obligation totals. Neither includes paycheck amounts.
+     *
+     * Until payday: today through the next payday, inclusive. If today is a payday,
+     * that next payday is the following one.
+     * Next period: strictly after that payday through the payday after it. Zero when
+     * there is no later payday.
      */
     fun calculate(
         events: List<CashEventEntity>,
@@ -31,27 +40,48 @@ object BudgetCalculator {
         today: LocalDate,
     ): BudgetSnapshot {
         val payday = nextPayday(events, today)
-            ?: return BudgetSnapshot(nextPayday = null, amountCents = 0, obligationCount = 0)
-
-        var total = 0L
-        var count = 0
-        for (event in events) {
-            if (event.kind == EventKind.PAY) continue
-            val dates = unpaidOccurrences(event, today, payday)
-            if (dates.isNotEmpty()) {
-                total += event.amountCents * dates.size
-                count += dates.size
-            }
+            ?: return BudgetSnapshot(
+                nextPayday = null,
+                followingPayday = null,
+                untilPaydayCents = 0,
+                nextPeriodCents = 0,
+                untilPaydayCount = 0,
+                nextPeriodCount = 0,
+            )
+        val following = paydayAfter(events, payday)
+        val until = sumCash(events, today, payday)
+        val next = if (following == null) {
+            WindowTotal(0, 0)
+        } else {
+            sumCash(events, payday.plusDays(1), following)
         }
+
+        var untilCents = until.cents
+        var untilCount = until.count
+        var nextCents = next.cents
+        var nextCount = next.count
         for (card in cards) {
             if (card.amountCents <= 0L) continue
             val due = balanceDueDate(card, today)
-            if (!due.isAfter(payday)) {
-                total += card.amountCents
-                count += 1
+            when {
+                !due.isAfter(payday) -> {
+                    untilCents += card.amountCents
+                    untilCount += 1
+                }
+                following != null && !due.isAfter(following) -> {
+                    nextCents += card.amountCents
+                    nextCount += 1
+                }
             }
         }
-        return BudgetSnapshot(nextPayday = payday, amountCents = total, obligationCount = count)
+        return BudgetSnapshot(
+            nextPayday = payday,
+            followingPayday = following,
+            untilPaydayCents = untilCents,
+            nextPeriodCents = nextCents,
+            untilPaydayCount = untilCount,
+            nextPeriodCount = nextCount,
+        )
     }
 
     fun pendingStatements(
@@ -111,10 +141,36 @@ object BudgetCalculator {
         return Schedule.nextOnOrAfter(event, from)
     }
 
+    /**
+     * The nearest payday on or after today. If today is itself a payday, this is
+     * the following one, so the current check does not close the first window.
+     */
     fun nextPayday(events: List<CashEventEntity>, today: LocalDate): LocalDate? {
         val pays = events.filter { it.kind == EventKind.PAY }
         val upcoming = pays.mapNotNull { Schedule.nextOnOrAfter(it, today) }.minOrNull() ?: return null
         if (upcoming.isAfter(today)) return upcoming
         return pays.mapNotNull { Schedule.nextOnOrAfter(it, today.plusDays(1)) }.minOrNull() ?: upcoming
     }
+
+    /** The payday after [payday], across every pay schedule. */
+    fun paydayAfter(events: List<CashEventEntity>, payday: LocalDate): LocalDate? {
+        val pays = events.filter { it.kind == EventKind.PAY }
+        return pays.mapNotNull { Schedule.nextOnOrAfter(it, payday.plusDays(1)) }.minOrNull()
+    }
+
+    private fun sumCash(events: List<CashEventEntity>, from: LocalDate, to: LocalDate): WindowTotal {
+        var cents = 0L
+        var count = 0
+        for (event in events) {
+            if (event.kind == EventKind.PAY) continue
+            val dates = unpaidOccurrences(event, from, to)
+            if (dates.isNotEmpty()) {
+                cents += event.amountCents * dates.size
+                count += dates.size
+            }
+        }
+        return WindowTotal(cents, count)
+    }
+
+    private data class WindowTotal(val cents: Long, val count: Int)
 }

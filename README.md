@@ -1,8 +1,8 @@
 # Cal Budget
 
-A calm, local-only Android app that answers one question: how much money needs to be in your bank account until your next payday?
+A calm, local-only Android app that shows two numbers: what is due until the next payday, and what the paycheck after that needs to cover.
 
-The home screen is a single dollar amount. Bills, credit cards, housing, pay, and settings live in the menu at the top right.
+The home screen stacks those amounts. Bills, credit cards, housing, pay, and settings live in the menu at the top right.
 
 ## Open and run
 
@@ -33,16 +33,18 @@ Output: `app/build/outputs/apk/release/app-release.apk`. For an x86_64 emulator 
 
 ## Using it
 
-- **Pay schedule.** Set when you get paid: weekly, biweekly, monthly, or every N days, weeks, or months. There is no paycheck amount. Pick a recent or upcoming payday as the anchor date. You can set an end date or leave it ongoing. The next payday is what the home screen counts toward. If you add more than one schedule, the soonest date wins.
-- **Bills and mortgage / housing.** Same recurrence options, plus a name, amount, and optional notes. Mark the next due date paid if you pay early; that occurrence drops off the home total, and later ones still count. Undo paid clears the latest mark.
+- **Pay schedule.** Set when you get paid: weekly, biweekly, monthly, or every N days, weeks, or months. There is no paycheck amount. Pick a recent or upcoming payday as the anchor date. You can set an end date or leave it ongoing. The home screen uses the next two paydays as the ends of its two windows. If you add more than one schedule, the soonest date wins.
+- **Bills and mortgage / housing.** Same recurrence options, plus a name, amount, and optional notes. Mark the next due date paid if you pay early; that occurrence drops off whichever number it would have been in, and later ones still count. Undo paid clears the latest mark.
 - **Credit cards.** Each card has a name, statement day, when the payment is due (days after the statement, or a day of the month), and the amount owed. You can edit that balance any time.
-- **Statement prompt.** The first time you open the app on or after a card’s statement date, if you have not entered that cycle’s balance, a dialog asks for the statement balance before the home number appears. Cards that still need a balance are shown one after another. Skip is only for this visit; the next launch asks again until you save a balance.
+- **Statement prompt.** The first time you open the app on or after a card’s statement date, if you have not entered that cycle’s balance, a dialog asks for the statement balance before the home numbers appear. Cards that still need a balance are shown one after another. Skip is only for this visit; the next launch asks again until you save a balance.
 - **Settings.** Explains the formula, lets you choose system, light, or dark appearance, and can erase all on-device data.
 
 Data is stored with Room on the device. There is no account, backend, or network.
 
-## How the home number is calculated
+## How the two numbers are calculated
 
-Add every bill and housing occurrence due from today through the next payday, including both ends. Add each credit card’s current statement balance when that payment is due on or before payday. A card balance that is already past due stays in the total until you update it. Income is not part of the total. A pay schedule only supplies the next payday.
+**Until payday** adds every unpaid bill and housing occurrence due from today through the next payday, including that payday, plus each credit card balance due on or before that payday. A card balance that is already past due stays in this number until you update it. If today is a payday, the next payday is the following one, so today does not close this window.
 
-If today is a payday, the window runs through the following payday, so the number is what you need until more pay arrives. If no pay schedule is saved, the home screen shows $0.00. Open the menu and choose Pay schedule to set when you get paid.
+**Next period** adds unpaid bills and housing due strictly after that payday through the payday after it, plus card balances due in that same span. That is what the next check needs to cover. A card due after the second payday is in neither number.
+
+Income is not part of either number. A pay schedule only supplies the dates. Marking a bill paid removes that occurrence from whichever window it falls in. If there is no later payday, Next period is $0.00. If no pay schedule is saved, both numbers are $0.00. Open the menu and choose Pay schedule to set when you get paid.

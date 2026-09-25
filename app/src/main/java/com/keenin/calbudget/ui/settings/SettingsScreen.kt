@@ -42,14 +42,19 @@ fun SettingsScreen(
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("How the number works", style = MaterialTheme.typography.titleLarge)
+            Text("How the numbers work", style = MaterialTheme.typography.titleLarge)
             Text(
-                "The home screen adds every bill and housing payment that comes due between today and your next payday, including the payday itself. Credit card statement balances are included when that payment is due by payday, and overdue card balances stay in the total until you change them.",
+                "Until payday is bills, housing, and card payments due from today through the next payday. Overdue card balances stay in that number. If today is payday, the next payday is the one after today.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                "A pay schedule only marks when you get paid. The number is bills, housing, and card payments — not income. If today is payday, the window runs through the following payday.",
+                "Next period is what is due after that payday, through the payday after it. That is what the next check needs to cover. If there is no later payday, it is $0.00.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                "A marked-paid bill date is left out of both. Paycheck amounts are not part of either number. A pay schedule only marks when you get paid.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
