@@ -92,6 +92,8 @@ fun AppRoot(
                     onOpenMenu = { menuOpen = true },
                     onAdd = { navController.navigate(Routes.cardEdit(null)) },
                     onOpen = { id -> navController.navigate(Routes.cardEdit(id)) },
+                    onRecordPayment = viewModel::recordCardPayment,
+                    onClearPayment = viewModel::clearCardPayment,
                 )
             }
             composable(Routes.SETTINGS) {
@@ -155,6 +157,8 @@ fun AppRoot(
                     onBack = { navController.popBackStack() },
                     onSave = { card, onDone -> viewModel.saveCard(card, onDone) },
                     onDelete = { id, onDone -> viewModel.deleteCard(id, onDone) },
+                    onRecordPayment = viewModel::recordCardPayment,
+                    onClearPayment = viewModel::clearCardPayment,
                 )
             }
         }

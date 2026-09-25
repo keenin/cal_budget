@@ -1,5 +1,6 @@
 package com.keenin.calbudget.ui.cards
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -57,6 +58,8 @@ fun CardListScreen(
     onOpenMenu: () -> Unit,
     onAdd: () -> Unit,
     onOpen: (Long) -> Unit,
+    onRecordPayment: (Long, Long) -> Unit,
+    onClearPayment: (Long) -> Unit,
 ) {
     MenuScaffold(
         title = "Credit cards",
@@ -82,7 +85,13 @@ fun CardListScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 items(ui.cards, key = { it.id }) { card ->
-                    CardRow(card = card, ui = ui, onClick = { onOpen(card.id) })
+                    CardRow(
+                        card = card,
+                        ui = ui,
+                        onClick = { onOpen(card.id) },
+                        onRecordPayment = { cents -> onRecordPayment(card.id, cents) },
+                        onClearPayment = { onClearPayment(card.id) },
+                    )
                 }
             }
         }
@@ -90,46 +99,116 @@ fun CardListScreen(
 }
 
 @Composable
-private fun CardRow(card: CreditCardEntity, ui: BudgetUi, onClick: () -> Unit) {
+private fun CardRow(
+    card: CreditCardEntity,
+    ui: BudgetUi,
+    onClick: () -> Unit,
+    onRecordPayment: (Long) -> Unit,
+    onClearPayment: () -> Unit,
+) {
     val needsStatement = ui.prompts.any { it.cardId == card.id }
     val due = BudgetCalculator.balanceDueDate(card, ui.today)
+    val remaining = BudgetCalculator.remainingOwed(card)
     val dueLabel = when (card.dueMode) {
         DueMode.DAYS_AFTER_STATEMENT -> "Due ${card.daysAfterStatement} days after statement"
         DueMode.DAY_OF_MONTH -> "Due on day ${card.dueDay}"
     }
-    OutlinedCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
-        Row(
-            Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(card.name, style = MaterialTheme.typography.titleMedium)
+    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onClick)
+                    .padding(vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(card.name, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Statement day ${card.statementDay} · $dueLabel",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                    Text(
+                        if (needsStatement) {
+                            "Statement needed"
+                        } else {
+                            "Payment ${due.format(dueFormatter)}"
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (needsStatement) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
                 Text(
-                    "Statement day ${card.statementDay} · $dueLabel",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-                Text(
-                    if (needsStatement) {
-                        "Statement needed"
-                    } else {
-                        "Payment ${due.format(dueFormatter)}"
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (needsStatement) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                    modifier = Modifier.padding(top = 2.dp),
+                    Money.format(remaining),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
                 )
             }
-            Text(
-                Money.format(card.amountCents),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
+            if (card.amountCents > 0L || card.paidTowardCents > 0L) {
+                CardPaymentControls(
+                    card = card,
+                    onRecordPayment = onRecordPayment,
+                    onClearPayment = onClearPayment,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CardPaymentControls(
+    card: CreditCardEntity,
+    onRecordPayment: (Long) -> Unit,
+    onClearPayment: () -> Unit,
+) {
+    val remaining = BudgetCalculator.remainingOwed(card)
+    var payment by rememberSaveable(card.id) { mutableStateOf("") }
+    var error by rememberSaveable(card.id) { mutableStateOf<String?>(null) }
+    if (card.paidTowardCents > 0L) {
+        Text(
+            if (remaining == 0L) {
+                "Paid in full · ${Money.format(card.amountCents)}"
+            } else {
+                "Paid ${Money.format(card.paidTowardCents)} of ${Money.format(card.amountCents)}"
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    if (remaining > 0L) {
+        MoneyField(
+            label = "Payment",
+            value = payment,
+            onValueChange = {
+                payment = it
+                error = null
+            },
+            error = error,
+        )
+        TextButton(
+            onClick = {
+                val parsed = Money.parse(payment)
+                if (parsed == null || parsed <= 0L) {
+                    error = "Enter a payment amount"
+                    return@TextButton
+                }
+                onRecordPayment(parsed)
+                payment = ""
+            },
+        ) {
+            Text("Record payment")
+        }
+    }
+    if (card.paidTowardCents > 0L) {
+        TextButton(onClick = onClearPayment) {
+            Text("Clear payment")
         }
     }
 }
@@ -142,6 +221,8 @@ fun CardEditScreen(
     onBack: () -> Unit,
     onSave: (CreditCardEntity, onDone: () -> Unit) -> Unit,
     onDelete: (Long, onDone: () -> Unit) -> Unit,
+    onRecordPayment: (Long, Long) -> Unit = { _, _ -> },
+    onClearPayment: (Long) -> Unit = {},
 ) {
     val existing = ui.cards.firstOrNull { it.id == cardId }
     var name by rememberSaveable { mutableStateOf("") }
@@ -196,7 +277,7 @@ fun CardEditScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                "After each statement date, the home screen asks for that cycle’s balance before it shows the number.",
+                "After each statement date, the home screen asks for that cycle’s balance before it shows the numbers.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -279,10 +360,17 @@ fun CardEditScreen(
                 error = amountError,
             )
             Text(
-                "Statement balance you still owe. Leave blank until the statement prompt if you don’t know it yet.",
+                "Full statement balance for this cycle. A payment reduces what the home numbers count and leaves this balance as entered. Leave blank until the statement prompt if you don’t know it yet.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (existing != null && (existing.amountCents > 0L || existing.paidTowardCents > 0L)) {
+                CardPaymentControls(
+                    card = existing,
+                    onRecordPayment = { cents -> onRecordPayment(existing.id, cents) },
+                    onClearPayment = { onClearPayment(existing.id) },
+                )
+            }
             OutlinedTextField(
                 value = notes,
                 onValueChange = { notes = it.take(400) },
@@ -336,6 +424,7 @@ fun CardEditScreen(
                             amountCents = parsedAmount,
                             notes = notes.trim(),
                             lastCapturedCycleKey = cycleKey,
+                            paidTowardCents = BudgetCalculator.paidTowardForSave(existing, cycleKey),
                         ),
                         onBack,
                     )
