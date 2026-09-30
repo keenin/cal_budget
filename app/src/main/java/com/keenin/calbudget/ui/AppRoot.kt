@@ -24,6 +24,7 @@ import com.keenin.calbudget.ui.events.EventListScreen
 import com.keenin.calbudget.ui.home.BreakdownScreen
 import com.keenin.calbudget.ui.home.HomeScreen
 import com.keenin.calbudget.ui.nav.Routes
+import com.keenin.calbudget.ui.nav.popBackStackFrom
 import com.keenin.calbudget.ui.settings.SettingsScreen
 import com.keenin.calbudget.ui.theme.ThemeMode
 
@@ -62,7 +63,7 @@ fun AppRoot(
                 BreakdownScreen(
                     window = entry.arguments?.getString("window").orEmpty(),
                     ui = ui,
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackFrom(entry) },
                     onMarkPaid = viewModel::markNextOccurrencePaid,
                     onUndoPaid = viewModel::undoLastPaidOccurrence,
                     onRecordPayment = viewModel::recordCardPayment,
@@ -129,7 +130,7 @@ fun AppRoot(
                     kind = EventKind.BILL,
                     eventId = entry.arguments?.getString("id").toId(),
                     ui = ui,
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackFrom(entry) },
                     onSave = { event, onDone -> viewModel.saveEvent(event, onDone) },
                     onDelete = { id, onDone -> viewModel.deleteEvent(id, onDone) },
                     onMarkPaid = viewModel::markNextOccurrencePaid,
@@ -144,7 +145,7 @@ fun AppRoot(
                     kind = EventKind.MORTGAGE,
                     eventId = entry.arguments?.getString("id").toId(),
                     ui = ui,
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackFrom(entry) },
                     onSave = { event, onDone -> viewModel.saveEvent(event, onDone) },
                     onDelete = { id, onDone -> viewModel.deleteEvent(id, onDone) },
                     onMarkPaid = viewModel::markNextOccurrencePaid,
@@ -159,7 +160,7 @@ fun AppRoot(
                     kind = EventKind.PAY,
                     eventId = entry.arguments?.getString("id").toId(),
                     ui = ui,
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackFrom(entry) },
                     onSave = { event, onDone -> viewModel.saveEvent(event, onDone) },
                     onDelete = { id, onDone -> viewModel.deleteEvent(id, onDone) },
                 )
@@ -171,7 +172,7 @@ fun AppRoot(
                 CardEditScreen(
                     cardId = entry.arguments?.getString("id").toId(),
                     ui = ui,
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackFrom(entry) },
                     onSave = { card, onDone -> viewModel.saveCard(card, onDone) },
                     onDelete = { id, onDone -> viewModel.deleteCard(id, onDone) },
                     onRecordPayment = viewModel::recordCardPayment,
