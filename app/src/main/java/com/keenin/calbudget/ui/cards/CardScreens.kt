@@ -374,7 +374,7 @@ fun CardEditScreen(
                 Column(Modifier.weight(1f)) {
                     Text("Automatic payment", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "Counts until the payment due date. On that day the unpaid remainder is treated as paid and drops off the home totals.",
+                        "Does not clear the remainder. It stays outstanding until you record a payment, even after the due date.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

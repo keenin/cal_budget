@@ -5,6 +5,29 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+val releaseKeystorePath = System.getenv("CALBUDGET_KEYSTORE_PATH")?.trim().orEmpty()
+val releaseKeystorePassword = System.getenv("CALBUDGET_KEYSTORE_PASSWORD").orEmpty()
+val releaseKeyAlias = System.getenv("CALBUDGET_KEY_ALIAS")?.trim().orEmpty()
+val releaseKeyPassword = System.getenv("CALBUDGET_KEY_PASSWORD").orEmpty()
+val releaseSigningRequested = releaseKeystorePath.isNotEmpty()
+if (releaseSigningRequested) {
+    val missing = buildList {
+        if (releaseKeystorePassword.isEmpty()) add("CALBUDGET_KEYSTORE_PASSWORD")
+        if (releaseKeyAlias.isEmpty()) add("CALBUDGET_KEY_ALIAS")
+        if (releaseKeyPassword.isEmpty()) add("CALBUDGET_KEY_PASSWORD")
+    }
+    if (missing.isNotEmpty()) {
+        error(
+            "Release signing was requested but these environment variables are empty: " +
+                missing.joinToString() +
+                ". Refusing to sign with a different key.",
+        )
+    }
+    if (!file(releaseKeystorePath).isFile) {
+        error("CALBUDGET_KEYSTORE_PATH is not a keystore file. Refusing to sign with a different key.")
+    }
+}
+
 android {
     namespace = "com.keenin.calbudget"
     compileSdk = 35
@@ -14,13 +37,25 @@ android {
         applicationId = "com.keenin.calbudget"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
+    }
+
+    signingConfigs {
+        if (releaseSigningRequested) {
+            create("release") {
+                storeFile = file(releaseKeystorePath)
+                storePassword = releaseKeystorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
     }
 
     buildTypes {
         debug {
             // Emulator (x86_64) and current phones. Drops 32-bit ABIs.
+            // Signed with the machine debug key. That key is not the stable update key.
             ndk {
                 abiFilters.addAll(listOf("arm64-v8a", "x86_64"))
             }
@@ -28,8 +63,10 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            // Local installable release build. There is no upload keystore.
-            signingConfig = signingConfigs.getByName("debug")
+            // Unsigned unless CALBUDGET_KEYSTORE_* is set. Never fall back to the debug key.
+            if (releaseSigningRequested) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",

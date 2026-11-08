@@ -43,7 +43,10 @@ data class CashEventEntity(
     val notes: String = "",
     /** Occurrences on or before this date are paid and do not count toward the home total. */
     val paidThroughEpochDay: Long? = null,
-    /** When true, an occurrence is treated as paid on its due date and drops out of the totals. */
+    /**
+     * Reminder that this expense is paid automatically.
+     * It does not mark occurrences paid or remove them from the totals.
+     */
     @ColumnInfo(defaultValue = "0")
     val autoPay: Boolean = false,
 )
@@ -63,7 +66,10 @@ data class CreditCardEntity(
     /** Payments already applied to [amountCents] for [lastCapturedCycleKey]. */
     @ColumnInfo(defaultValue = "0")
     val paidTowardCents: Long = 0,
-    /** When true, the unpaid statement remainder is treated as paid on its due date. */
+    /**
+     * Reminder that this statement is paid automatically.
+     * It does not clear the unpaid remainder or remove the card from the totals.
+     */
     @ColumnInfo(defaultValue = "0")
     val autoPay: Boolean = false,
 )
