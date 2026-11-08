@@ -243,7 +243,7 @@ class BudgetLogicTest {
         assertEquals(2, before.untilPaydayCount)
         assertEquals(80_00, before.nextPeriodCents)
         assertEquals(2, before.nextPeriodCount)
-        assertEquals(LocalDate.of(2026, 9, 11), BudgetCalculator.nextUnpaidOccurrence(bill))
+        assertEquals(LocalDate.of(2026, 9, 11), BudgetCalculator.nextUnpaidOccurrence(bill, today))
 
         val paid = bill.copy(paidThroughEpochDay = LocalDate.of(2026, 9, 11).toEpochDay())
         val after = BudgetCalculator.calculate(listOf(pay(start = LocalDate.of(2026, 9, 4)), paid), emptyList(), today)
@@ -259,7 +259,7 @@ class BudgetLogicTest {
             ),
             after.nextPeriod,
         )
-        assertEquals(LocalDate.of(2026, 9, 18), BudgetCalculator.nextUnpaidOccurrence(paid))
+        assertEquals(LocalDate.of(2026, 9, 18), BudgetCalculator.nextUnpaidOccurrence(paid, today))
         assertEquals(
             LocalDate.of(2026, 9, 11),
             Schedule.previousStrictlyBefore(paid, LocalDate.of(2026, 9, 18)),
@@ -286,7 +286,7 @@ class BudgetLogicTest {
         )
         assertEquals(80_00, nextCycle.nextPeriodCents)
         assertEquals(2, nextCycle.nextPeriodCount)
-        assertEquals(LocalDate.of(2026, 9, 18), BudgetCalculator.nextUnpaidOccurrence(paid))
+        assertEquals(LocalDate.of(2026, 9, 18), BudgetCalculator.nextUnpaidOccurrence(paid, LocalDate.of(2026, 10, 1)))
         assertNoDuplicateObligations(nextCycle)
     }
 
@@ -539,54 +539,282 @@ class BudgetLogicTest {
     }
 
     @Test
-    fun partialAndFullCardPaymentsStillControlAnAutopayRemainder() {
-        val today = LocalDate.of(2026, 9, 20)
-        val events = listOf(pay(start = LocalDate.of(2026, 9, 25)))
-        val owed = card(
-            statementDay = 1,
-            amount = 1_000_00,
-            captured = LocalDate.of(2026, 9, 1),
-            daysAfter = 5,
+    fun overdueStartsTheDayAfterTheDueDate() {
+        val due = LocalDate.of(2026, 9, 11)
+        assertEquals(false, BudgetCalculator.isOverdue(due, LocalDate.of(2026, 9, 10)))
+        assertEquals(false, BudgetCalculator.isOverdue(due, due))
+        assertEquals(true, BudgetCalculator.isOverdue(due, LocalDate.of(2026, 9, 12)))
+    }
+
+    @Test
+    fun automaticPaymentDropsOffOnTheDueDateAndStaysOff() {
+        val due = LocalDate.of(2026, 9, 11)
+        val bill = event(
+            kind = EventKind.BILL,
+            recurrence = RecurrenceType.WEEKLY,
+            start = due,
+            amount = 40_00,
+            name = "Auto weekly",
+        ).copy(autoPay = true)
+        val housing = event(
+            kind = EventKind.MORTGAGE,
+            recurrence = RecurrenceType.MONTHLY,
+            start = due,
+            amount = 100_00,
+            name = "Auto housing",
+        ).copy(autoPay = true)
+        val autoCard = card(
+            statementDay = 21,
+            amount = 50_00,
+            captured = LocalDate.of(2026, 8, 21),
+            daysAfter = 21,
             name = "Auto card",
         ).copy(autoPay = true)
-        assertEquals(LocalDate.of(2026, 9, 6), BudgetCalculator.balanceDueDate(owed, today))
+        val events = listOf(pay(start = LocalDate.of(2026, 9, 4)), bill, housing)
 
+        val before = BudgetCalculator.calculate(events, listOf(autoCard), LocalDate.of(2026, 9, 10))
+        assertEquals(
+            listOf(
+                line("Auto card", due, 50_00, source = ObligationSource.CARD, sourceId = 1),
+                line("Auto housing", due, 100_00, source = ObligationSource.MORTGAGE),
+                line("Auto weekly", due, 40_00),
+                line("Auto weekly", LocalDate.of(2026, 9, 18), 40_00),
+            ),
+            before.untilPayday,
+        )
+        assertEquals(false, before.untilPayday.first { it.name == "Auto weekly" }.overdue)
+        assertEquals(due, BudgetCalculator.nextUnpaidOccurrence(bill, LocalDate.of(2026, 9, 10)))
+
+        val onDue = BudgetCalculator.calculate(events, listOf(autoCard), due)
+        assertEquals(
+            listOf(line("Auto weekly", LocalDate.of(2026, 9, 18), 40_00)),
+            onDue.untilPayday,
+        )
+        assertTrue(onDue.untilPayday.none { it.due == due })
+        assertEquals(false, onDue.untilPayday.single().overdue)
+        assertEquals(LocalDate.of(2026, 9, 18), BudgetCalculator.nextUnpaidOccurrence(bill, due))
+
+        val after = BudgetCalculator.calculate(events, listOf(autoCard), LocalDate.of(2026, 9, 12))
+        assertEquals(onDue.untilPayday, after.untilPayday)
+        assertTrue((after.untilPayday + after.nextPeriod + after.followingPeriod).none { it.due == due })
+        assertNoDuplicateObligations(after)
+    }
+
+    @Test
+    fun manualExpensesStayOutstandingAndTurnOverdueAfterTheDueDate() {
+        val due = LocalDate.of(2026, 9, 11)
+        val bill = event(
+            kind = EventKind.BILL,
+            recurrence = RecurrenceType.WEEKLY,
+            start = due,
+            amount = 40_00,
+            name = "Manual weekly",
+        )
+        val housing = event(
+            kind = EventKind.MORTGAGE,
+            recurrence = RecurrenceType.MONTHLY,
+            start = due,
+            amount = 100_00,
+            name = "Manual housing",
+        )
+        val manualCard = card(
+            statementDay = 21,
+            amount = 50_00,
+            captured = LocalDate.of(2026, 8, 21),
+            daysAfter = 21,
+            name = "Manual card",
+        )
+        val events = listOf(pay(start = LocalDate.of(2026, 9, 4)), bill, housing)
+
+        val before = BudgetCalculator.calculate(events, listOf(manualCard), LocalDate.of(2026, 9, 10))
+        assertEquals(false, before.untilPayday.first { it.due == due }.overdue)
+        assertEquals(4, before.untilPayday.count { !it.overdue && (it.due == due || it.name == "Manual weekly") })
+
+        val onDue = BudgetCalculator.calculate(events, listOf(manualCard), due)
+        val dueLines = onDue.untilPayday.filter { it.due == due }
+        assertEquals(3, dueLines.size)
+        assertTrue(dueLines.none { it.overdue })
+        assertTrue(onDue.untilPayday.any { it.name == "Manual weekly" && it.due == LocalDate.of(2026, 9, 18) && !it.overdue })
+
+        val after = BudgetCalculator.calculate(events, listOf(manualCard), LocalDate.of(2026, 9, 12))
+        assertEquals(
+            listOf(
+                line("Manual card", due, 50_00, overdue = true, source = ObligationSource.CARD, sourceId = 1),
+                line("Manual housing", due, 100_00, overdue = true, source = ObligationSource.MORTGAGE),
+                line("Manual weekly", due, 40_00, overdue = true),
+                line("Manual weekly", LocalDate.of(2026, 9, 18), 40_00),
+            ),
+            after.untilPayday,
+        )
+        assertEquals(due, BudgetCalculator.nextUnpaidOccurrence(bill, LocalDate.of(2026, 9, 12)))
+        assertNoDuplicateObligations(after)
+
+        val rolled = BudgetCalculator.calculate(events, listOf(manualCard), LocalDate.of(2026, 10, 3))
+        val weekly = rolled.untilPayday.filter { it.name == "Manual weekly" }
+        assertEquals(
+            listOf(
+                LocalDate.of(2026, 9, 11),
+                LocalDate.of(2026, 9, 18),
+                LocalDate.of(2026, 9, 25),
+                LocalDate.of(2026, 10, 2),
+                LocalDate.of(2026, 10, 9),
+                LocalDate.of(2026, 10, 16),
+            ),
+            weekly.map { it.due },
+        )
+        assertTrue(weekly.filter { it.due.isBefore(LocalDate.of(2026, 10, 3)) }.all { it.overdue })
+        assertTrue(weekly.filter { !it.due.isBefore(LocalDate.of(2026, 10, 3)) }.none { it.overdue })
+        assertEquals(1, (rolled.untilPayday + rolled.nextPeriod + rolled.followingPeriod).count { it.name == "Manual card" })
+        assertEquals(true, rolled.untilPayday.first { it.name == "Manual card" }.overdue)
+        assertNoDuplicateObligations(rolled)
+    }
+
+    @Test
+    fun manualPaymentRemovesOnlyTheMarkedOccurrence() {
+        val today = LocalDate.of(2026, 9, 12)
+        val due = LocalDate.of(2026, 9, 11)
+        val bill = event(
+            kind = EventKind.BILL,
+            recurrence = RecurrenceType.WEEKLY,
+            start = due,
+            amount = 40_00,
+            name = "Manual weekly",
+        )
+        val housing = event(
+            kind = EventKind.MORTGAGE,
+            recurrence = RecurrenceType.MONTHLY,
+            start = due,
+            amount = 100_00,
+            name = "Manual housing",
+        )
+        val payday = pay(start = LocalDate.of(2026, 9, 4))
+        assertEquals(due, BudgetCalculator.nextUnpaidOccurrence(bill, today))
+
+        val marked = bill.copy(paidThroughEpochDay = due.toEpochDay())
+        val after = BudgetCalculator.calculate(listOf(payday, marked, housing), emptyList(), today)
+        assertTrue(after.untilPayday.none { it.name == "Manual weekly" && it.due == due })
+        assertEquals(
+            listOf(line("Manual weekly", LocalDate.of(2026, 9, 18), 40_00)),
+            after.untilPayday.filter { it.name == "Manual weekly" },
+        )
+        assertEquals(false, after.untilPayday.first { it.name == "Manual weekly" }.overdue)
+        val housingLine = after.untilPayday.first { it.name == "Manual housing" }
+        assertEquals(due, housingLine.due)
+        assertEquals(true, housingLine.overdue)
+        assertEquals(LocalDate.of(2026, 9, 18), BudgetCalculator.nextUnpaidOccurrence(marked, today))
+        val markedRow = BudgetCalculator.billPayChoices(marked, due, today)
+        assertNull(markedRow.markOn)
+        assertEquals(true, markedRow.canUndo)
+        assertEquals(LocalDate.of(2026, 9, 18), BudgetCalculator.billPayChoices(marked, LocalDate.of(2026, 9, 18), today).markOn)
+
+        val both = marked.copy(paidThroughEpochDay = LocalDate.of(2026, 9, 18).toEpochDay())
+        val later = BudgetCalculator.calculate(listOf(payday, both), emptyList(), today)
+        assertTrue(later.untilPayday.isEmpty())
+        assertEquals(
+            listOf(
+                line("Manual weekly", LocalDate.of(2026, 9, 25), 40_00),
+                line("Manual weekly", LocalDate.of(2026, 10, 2), 40_00),
+            ),
+            later.nextPeriod,
+        )
+        assertTrue(later.nextPeriod.none { it.overdue })
+        assertNoDuplicateObligations(later)
+    }
+
+    @Test
+    fun partialAndFullPaymentsRespectAutopayAndStayVisibleWhenItIsOff() {
+        val events = listOf(pay(start = LocalDate.of(2026, 9, 4)))
+        val owed = card(
+            statementDay = 5,
+            amount = 1_000_00,
+            captured = LocalDate.of(2026, 9, 5),
+            daysAfter = 12,
+            name = "Card",
+        )
+        assertEquals(LocalDate.of(2026, 9, 17), BudgetCalculator.balanceDueDate(owed, LocalDate.of(2026, 9, 10)))
         val half = BudgetCalculator.recordPayment(owed, 400_00)
-        val partial = BudgetCalculator.calculate(events, listOf(half), today)
+        val beforeDue = BudgetCalculator.calculate(events, listOf(half), LocalDate.of(2026, 9, 10))
         assertEquals(600_00, BudgetCalculator.remainingOwed(half))
         assertEquals(
-            listOf(line("Auto card", LocalDate.of(2026, 9, 6), 600_00, overdue = true, source = ObligationSource.CARD, sourceId = 1)),
-            partial.untilPayday,
+            listOf(line("Card", LocalDate.of(2026, 9, 17), 600_00, source = ObligationSource.CARD, sourceId = 1)),
+            beforeDue.untilPayday,
         )
-        assertTrue(partial.nextPeriod.isEmpty())
-        assertTrue(partial.followingPeriod.isEmpty())
+        assertEquals(false, beforeDue.untilPayday.single().overdue)
 
-        val rolled = BudgetCalculator.calculate(events, listOf(half), LocalDate.of(2026, 9, 26))
-        assertEquals(LocalDate.of(2026, 10, 9), rolled.nextPayday)
-        assertEquals(partial.untilPayday, rolled.untilPayday)
-        assertEquals(1, (rolled.untilPayday + rolled.nextPeriod + rolled.followingPeriod).count { it.name == "Auto card" })
+        val manualAfter = BudgetCalculator.calculate(events, listOf(half), LocalDate.of(2026, 9, 18))
+        assertEquals(
+            listOf(line("Card", LocalDate.of(2026, 9, 17), 600_00, overdue = true, source = ObligationSource.CARD, sourceId = 1)),
+            manualAfter.untilPayday.filter { it.source == ObligationSource.CARD },
+        )
+        assertEquals(1, (manualAfter.untilPayday + manualAfter.nextPeriod + manualAfter.followingPeriod).count { it.name == "Card" })
+
+        val auto = half.copy(autoPay = true)
+        val autoBefore = BudgetCalculator.calculate(events, listOf(auto), LocalDate.of(2026, 9, 16))
+        assertEquals(600_00, autoBefore.untilPaydayCents)
+        assertEquals(false, autoBefore.untilPayday.single().overdue)
+        val autoOnDue = BudgetCalculator.calculate(events, listOf(auto), LocalDate.of(2026, 9, 17))
+        assertTrue(autoOnDue.untilPayday.isEmpty())
+        assertEquals(600_00, BudgetCalculator.remainingOwed(auto))
+        val autoAfter = BudgetCalculator.calculate(events, listOf(auto), LocalDate.of(2026, 9, 18))
+        assertTrue((autoAfter.untilPayday + autoAfter.nextPeriod + autoAfter.followingPeriod).none { it.name == "Card" })
 
         val paidOff = BudgetCalculator.recordPayment(half, 600_00)
-        val covered = BudgetCalculator.calculate(events, listOf(paidOff), today)
+        val covered = BudgetCalculator.calculate(events, listOf(paidOff), LocalDate.of(2026, 9, 18))
         assertEquals(0, BudgetCalculator.remainingOwed(paidOff))
         assertTrue(covered.untilPayday.isEmpty())
         assertTrue(covered.nextPeriod.isEmpty())
-        assertTrue(covered.followingPeriod.isEmpty())
-
-        val restoredCard = BudgetCalculator.clearPayment(paidOff)
-        val restored = BudgetCalculator.calculate(events, listOf(restoredCard), today)
+        val restored = BudgetCalculator.calculate(events, listOf(BudgetCalculator.clearPayment(paidOff)), LocalDate.of(2026, 9, 18))
         assertEquals(1_000_00, restored.untilPaydayCents)
-        assertEquals(1, restored.untilPaydayCount)
+        assertEquals(true, restored.untilPayday.single().overdue)
+    }
 
-        val nextCycle = BudgetCalculator.applyStatementBalance(half, 800_00, "2026-10-01")
-        assertEquals(0, nextCycle.paidTowardCents)
-        assertTrue(nextCycle.autoPay)
-        val afterStatement = BudgetCalculator.calculate(events, listOf(nextCycle), LocalDate.of(2026, 10, 1))
-        assertEquals(
-            listOf(line("Auto card", LocalDate.of(2026, 10, 6), 800_00, source = ObligationSource.CARD, sourceId = 1)),
-            afterStatement.untilPayday,
+    @Test
+    fun recurringOccurrencesAreCountedOnceForAutopayAndManual() {
+        val today = LocalDate.of(2026, 9, 20)
+        val start = LocalDate.of(2026, 9, 11)
+        val manual = event(
+            kind = EventKind.BILL,
+            recurrence = RecurrenceType.WEEKLY,
+            start = start,
+            amount = 10_00,
+            name = "Weekly",
         )
-        assertNoDuplicateObligations(afterStatement)
+        val paidFirst = manual.copy(paidThroughEpochDay = start.toEpochDay())
+        val manualSnapshot = BudgetCalculator.calculate(
+            listOf(pay(start = LocalDate.of(2026, 9, 4)), paidFirst),
+            emptyList(),
+            today,
+        )
+        assertEquals(
+            listOf(
+                line("Weekly", LocalDate.of(2026, 9, 18), 10_00, overdue = true),
+                line("Weekly", LocalDate.of(2026, 9, 25), 10_00),
+                line("Weekly", LocalDate.of(2026, 10, 2), 10_00),
+            ),
+            manualSnapshot.untilPayday,
+        )
+        assertTrue(manualSnapshot.untilPayday.none { it.due == start })
+        assertNoDuplicateObligations(manualSnapshot)
+
+        val automatic = manual.copy(autoPay = true)
+        val autoSnapshot = BudgetCalculator.calculate(
+            listOf(pay(start = LocalDate.of(2026, 9, 4)), automatic),
+            emptyList(),
+            today,
+        )
+        assertEquals(
+            listOf(
+                line("Weekly", LocalDate.of(2026, 9, 25), 10_00),
+                line("Weekly", LocalDate.of(2026, 10, 2), 10_00),
+            ),
+            autoSnapshot.untilPayday,
+        )
+        assertTrue(autoSnapshot.untilPayday.none { it.overdue })
+        assertEquals(LocalDate.of(2026, 9, 25), BudgetCalculator.nextUnpaidOccurrence(automatic, today))
+        val all = autoSnapshot.untilPayday + autoSnapshot.nextPeriod + autoSnapshot.followingPeriod
+        assertEquals(all.map { it.due }.distinct(), all.map { it.due })
+        assertTrue(all.none { !it.due.isAfter(today) })
+        assertNoDuplicateObligations(autoSnapshot)
     }
 
     @Test
@@ -676,270 +904,6 @@ class BudgetLogicTest {
     }
 
     @Test
-    fun pastDueAutopayStaysOnOutstandingLists() {
-        val today = LocalDate.of(2026, 9, 11)
-        val events = listOf(
-            pay(start = LocalDate.of(2026, 9, 4)),
-            event(
-                kind = EventKind.BILL,
-                recurrence = RecurrenceType.MONTHLY,
-                start = LocalDate.of(2026, 9, 10),
-                amount = 30_00,
-                name = "Due yesterday",
-            ).copy(autoPay = true),
-            event(
-                kind = EventKind.BILL,
-                recurrence = RecurrenceType.MONTHLY,
-                start = today,
-                amount = 20_00,
-                name = "Due today",
-            ).copy(autoPay = true),
-            event(
-                kind = EventKind.BILL,
-                recurrence = RecurrenceType.MONTHLY,
-                start = LocalDate.of(2026, 9, 12),
-                amount = 40_00,
-                name = "Due tomorrow",
-            ).copy(autoPay = true),
-            event(
-                kind = EventKind.MORTGAGE,
-                recurrence = RecurrenceType.MONTHLY,
-                start = LocalDate.of(2026, 9, 10),
-                amount = 100_00,
-                name = "Auto housing",
-            ).copy(autoPay = true),
-            event(
-                kind = EventKind.BILL,
-                recurrence = RecurrenceType.MONTHLY,
-                start = LocalDate.of(2026, 9, 10),
-                amount = 15_00,
-                name = "Manual overdue",
-            ),
-        )
-        val dueYesterdayCard = card(
-            id = 1,
-            statementDay = 20,
-            amount = 200_00,
-            captured = LocalDate.of(2026, 8, 20),
-            daysAfter = 21,
-            name = "Card yesterday",
-        ).copy(autoPay = true)
-        val dueTodayCard = card(
-            id = 2,
-            statementDay = 21,
-            amount = 300_00,
-            captured = LocalDate.of(2026, 8, 21),
-            daysAfter = 21,
-            name = "Card today",
-        ).copy(autoPay = true)
-        val snapshot = BudgetCalculator.calculate(events, listOf(dueYesterdayCard, dueTodayCard), today)
-        assertEquals(LocalDate.of(2026, 9, 18), snapshot.nextPayday)
-        assertEquals(
-            listOf(
-                line("Auto housing", LocalDate.of(2026, 9, 10), 100_00, overdue = true, source = ObligationSource.MORTGAGE),
-                line("Card yesterday", LocalDate.of(2026, 9, 10), 200_00, overdue = true, source = ObligationSource.CARD, sourceId = 1),
-                line("Due yesterday", LocalDate.of(2026, 9, 10), 30_00, overdue = true),
-                line("Manual overdue", LocalDate.of(2026, 9, 10), 15_00, overdue = true),
-                line("Card today", today, 300_00, source = ObligationSource.CARD, sourceId = 2),
-                line("Due today", today, 20_00),
-                line("Due tomorrow", LocalDate.of(2026, 9, 12), 40_00),
-            ),
-            snapshot.untilPayday,
-        )
-        assertEquals(705_00, snapshot.untilPaydayCents)
-        assertEquals(snapshot.untilPaydayCents, snapshot.untilPayday.sumOf { it.amountCents })
-        assertEquals(today, BudgetCalculator.nextUnpaidOccurrence(events.first { it.name == "Due today" }))
-        assertEquals(LocalDate.of(2026, 9, 10), BudgetCalculator.nextUnpaidOccurrence(events.first { it.name == "Due yesterday" }))
-        assertNoDuplicateObligations(snapshot)
-    }
-
-    @Test
-    fun dateRolloverKeepsUnpaidAutopayVisibleWithoutDoubleCounting() {
-        val bill = event(
-            kind = EventKind.BILL,
-            recurrence = RecurrenceType.WEEKLY,
-            start = LocalDate.of(2026, 9, 11),
-            amount = 40_00,
-            name = "Auto weekly",
-        ).copy(autoPay = true)
-        val housing = event(
-            kind = EventKind.MORTGAGE,
-            recurrence = RecurrenceType.MONTHLY,
-            start = LocalDate.of(2026, 9, 11),
-            amount = 100_00,
-            name = "Auto housing",
-        ).copy(autoPay = true)
-        val autoCard = card(
-            statementDay = 9,
-            amount = 50_00,
-            captured = LocalDate.of(2026, 9, 9),
-            daysAfter = 21,
-            name = "Auto card",
-        ).copy(autoPay = true)
-        val events = listOf(pay(start = LocalDate.of(2026, 9, 4)), bill, housing)
-
-        val dayBefore = BudgetCalculator.calculate(events, listOf(autoCard), LocalDate.of(2026, 9, 10))
-        assertEquals(
-            listOf(
-                line("Auto housing", LocalDate.of(2026, 9, 11), 100_00, source = ObligationSource.MORTGAGE),
-                line("Auto weekly", LocalDate.of(2026, 9, 11), 40_00),
-                line("Auto weekly", LocalDate.of(2026, 9, 18), 40_00),
-            ),
-            dayBefore.untilPayday,
-        )
-        assertEquals(
-            listOf(line("Auto card", LocalDate.of(2026, 9, 30), 50_00, source = ObligationSource.CARD, sourceId = 1)),
-            dayBefore.nextPeriod.filter { it.source == ObligationSource.CARD },
-        )
-
-        val onDue = BudgetCalculator.calculate(events, listOf(autoCard), LocalDate.of(2026, 9, 11))
-        val dueToday = onDue.untilPayday.first { it.name == "Auto weekly" }
-        assertEquals(LocalDate.of(2026, 9, 11), dueToday.due)
-        assertEquals(false, dueToday.overdue)
-
-        val dayAfter = BudgetCalculator.calculate(events, listOf(autoCard), LocalDate.of(2026, 9, 12))
-        assertEquals(
-            listOf(
-                line("Auto housing", LocalDate.of(2026, 9, 11), 100_00, overdue = true, source = ObligationSource.MORTGAGE),
-                line("Auto weekly", LocalDate.of(2026, 9, 11), 40_00, overdue = true),
-                line("Auto weekly", LocalDate.of(2026, 9, 18), 40_00),
-            ),
-            dayAfter.untilPayday,
-        )
-        assertEquals(dayBefore.nextPeriod, dayAfter.nextPeriod)
-        assertEquals(dayBefore.followingPeriod, dayAfter.followingPeriod)
-        assertNoDuplicateObligations(dayAfter)
-
-        val rolled = BudgetCalculator.calculate(events, listOf(autoCard), LocalDate.of(2026, 10, 3))
-        assertEquals(LocalDate.of(2026, 10, 16), rolled.nextPayday)
-        assertEquals(
-            listOf(
-                line("Auto housing", LocalDate.of(2026, 9, 11), 100_00, overdue = true, source = ObligationSource.MORTGAGE),
-                line("Auto weekly", LocalDate.of(2026, 9, 11), 40_00, overdue = true),
-                line("Auto weekly", LocalDate.of(2026, 9, 18), 40_00, overdue = true),
-                line("Auto weekly", LocalDate.of(2026, 9, 25), 40_00, overdue = true),
-                line("Auto card", LocalDate.of(2026, 9, 30), 50_00, overdue = true, source = ObligationSource.CARD, sourceId = 1),
-                line("Auto weekly", LocalDate.of(2026, 10, 2), 40_00, overdue = true),
-                line("Auto weekly", LocalDate.of(2026, 10, 9), 40_00),
-                line("Auto housing", LocalDate.of(2026, 10, 11), 100_00, source = ObligationSource.MORTGAGE),
-                line("Auto weekly", LocalDate.of(2026, 10, 16), 40_00),
-            ),
-            rolled.untilPayday,
-        )
-        assertTrue(rolled.nextPeriod.none { it.source == ObligationSource.CARD })
-        assertTrue(rolled.followingPeriod.none { it.source == ObligationSource.CARD })
-        val all = rolled.untilPayday + rolled.nextPeriod + rolled.followingPeriod
-        assertEquals(1, all.count { it.name == "Auto housing" && it.due == LocalDate.of(2026, 9, 11) })
-        assertEquals(1, all.count { it.name == "Auto housing" && it.due == LocalDate.of(2026, 10, 11) })
-        assertEquals(all.sumOf { it.amountCents }, rolled.untilPaydayCents + rolled.nextPeriodCents + rolled.followingPeriodCents)
-        assertNoDuplicateObligations(rolled)
-    }
-
-    @Test
-    fun manualPaymentRemovesOnlyTheMarkedOccurrence() {
-        val today = LocalDate.of(2026, 9, 12)
-        val bill = event(
-            kind = EventKind.BILL,
-            recurrence = RecurrenceType.WEEKLY,
-            start = LocalDate.of(2026, 9, 11),
-            amount = 40_00,
-            name = "Auto weekly",
-        ).copy(autoPay = true)
-        val housing = event(
-            kind = EventKind.MORTGAGE,
-            recurrence = RecurrenceType.MONTHLY,
-            start = LocalDate.of(2026, 9, 11),
-            amount = 100_00,
-            name = "Auto housing",
-        ).copy(autoPay = true)
-        val payday = pay(start = LocalDate.of(2026, 9, 4))
-        assertEquals(LocalDate.of(2026, 9, 11), BudgetCalculator.nextUnpaidOccurrence(bill))
-
-        val marked = bill.copy(paidThroughEpochDay = LocalDate.of(2026, 9, 11).toEpochDay())
-        val after = BudgetCalculator.calculate(listOf(payday, marked, housing), emptyList(), today)
-        assertTrue(after.untilPayday.none { it.name == "Auto weekly" && it.due == LocalDate.of(2026, 9, 11) })
-        assertEquals(
-            listOf(line("Auto weekly", LocalDate.of(2026, 9, 18), 40_00)),
-            after.untilPayday.filter { it.name == "Auto weekly" },
-        )
-        assertTrue(after.untilPayday.any { it.name == "Auto housing" && it.due == LocalDate.of(2026, 9, 11) && it.overdue })
-        assertEquals(LocalDate.of(2026, 9, 18), BudgetCalculator.nextUnpaidOccurrence(marked))
-        val markedRow = BudgetCalculator.billPayChoices(marked, LocalDate.of(2026, 9, 11))
-        assertNull(markedRow.markOn)
-        assertEquals(true, markedRow.canUndo)
-        assertEquals(LocalDate.of(2026, 9, 18), BudgetCalculator.billPayChoices(marked, LocalDate.of(2026, 9, 18)).markOn)
-
-        val both = marked.copy(paidThroughEpochDay = LocalDate.of(2026, 9, 18).toEpochDay())
-        val later = BudgetCalculator.calculate(listOf(payday, both), emptyList(), today)
-        assertTrue(later.untilPayday.none { it.name == "Auto weekly" })
-        assertEquals(
-            listOf(
-                line("Auto weekly", LocalDate.of(2026, 9, 25), 40_00),
-                line("Auto weekly", LocalDate.of(2026, 10, 2), 40_00),
-            ),
-            later.nextPeriod,
-        )
-        assertNoDuplicateObligations(later)
-
-        val future = event(
-            kind = EventKind.BILL,
-            recurrence = RecurrenceType.MONTHLY,
-            start = LocalDate.of(2026, 9, 20),
-            amount = 15_00,
-            name = "Future auto",
-        ).copy(autoPay = true)
-        val open = BudgetCalculator.calculate(listOf(payday, future), emptyList(), LocalDate.of(2026, 9, 10))
-        assertEquals(listOf(line("Future auto", LocalDate.of(2026, 9, 20), 15_00)), open.nextPeriod)
-        val paidEarly = future.copy(paidThroughEpochDay = LocalDate.of(2026, 9, 20).toEpochDay())
-        val closed = BudgetCalculator.calculate(listOf(payday, paidEarly), emptyList(), LocalDate.of(2026, 9, 10))
-        assertTrue(closed.untilPayday.isEmpty())
-        assertTrue(closed.nextPeriod.isEmpty())
-        assertEquals(true, BudgetCalculator.billPayChoices(paidEarly, LocalDate.of(2026, 9, 20)).canUndo)
-        val restored = BudgetCalculator.calculate(listOf(payday, future), emptyList(), LocalDate.of(2026, 9, 10))
-        assertEquals(open, restored)
-    }
-
-    @Test
-    fun recurringOccurrencesAreNotCountedTwiceWhenOneIsPaid() {
-        val today = LocalDate.of(2026, 9, 20)
-        val bill = event(
-            kind = EventKind.BILL,
-            recurrence = RecurrenceType.WEEKLY,
-            start = LocalDate.of(2026, 9, 11),
-            amount = 10_00,
-            name = "Weekly",
-        ).copy(autoPay = true)
-        val paidFirst = bill.copy(paidThroughEpochDay = LocalDate.of(2026, 9, 11).toEpochDay())
-        val snapshot = BudgetCalculator.calculate(listOf(pay(start = LocalDate.of(2026, 9, 4)), paidFirst), emptyList(), today)
-        assertEquals(
-            listOf(
-                line("Weekly", LocalDate.of(2026, 9, 18), 10_00, overdue = true),
-                line("Weekly", LocalDate.of(2026, 9, 25), 10_00),
-                line("Weekly", LocalDate.of(2026, 10, 2), 10_00),
-            ),
-            snapshot.untilPayday,
-        )
-        assertEquals(
-            listOf(
-                line("Weekly", LocalDate.of(2026, 10, 9), 10_00),
-                line("Weekly", LocalDate.of(2026, 10, 16), 10_00),
-            ),
-            snapshot.nextPeriod,
-        )
-        assertEquals(
-            listOf(
-                line("Weekly", LocalDate.of(2026, 10, 23), 10_00),
-                line("Weekly", LocalDate.of(2026, 10, 30), 10_00),
-            ),
-            snapshot.followingPeriod,
-        )
-        assertEquals(30_00, snapshot.untilPaydayCents)
-        assertEquals(20_00, snapshot.nextPeriodCents)
-        assertEquals(20_00, snapshot.followingPeriodCents)
-        assertNoDuplicateObligations(snapshot)
-    }
-
-    @Test
     fun billPayChoicesMarkTheNextUnpaidAndUndoAfterItIsPaid() {
         val today = LocalDate.of(2026, 9, 10)
         val bill = event(
@@ -949,16 +913,16 @@ class BudgetLogicTest {
             amount = 40_00,
             name = "Groceries",
         )
-        val laterRow = BudgetCalculator.billPayChoices(bill, LocalDate.of(2026, 9, 18))
+        val laterRow = BudgetCalculator.billPayChoices(bill, LocalDate.of(2026, 9, 18), today)
         assertEquals(LocalDate.of(2026, 9, 11), laterRow.markOn)
         assertEquals(false, laterRow.canUndo)
 
         val paid = bill.copy(paidThroughEpochDay = LocalDate.of(2026, 9, 11).toEpochDay())
-        val markedRow = BudgetCalculator.billPayChoices(paid, LocalDate.of(2026, 9, 11))
+        val markedRow = BudgetCalculator.billPayChoices(paid, LocalDate.of(2026, 9, 11), today)
         assertNull(markedRow.markOn)
         assertEquals(true, markedRow.canUndo)
 
-        val stillOpen = BudgetCalculator.billPayChoices(paid, LocalDate.of(2026, 9, 18))
+        val stillOpen = BudgetCalculator.billPayChoices(paid, LocalDate.of(2026, 9, 18), today)
         assertEquals(LocalDate.of(2026, 9, 18), stillOpen.markOn)
         assertEquals(true, stillOpen.canUndo)
     }

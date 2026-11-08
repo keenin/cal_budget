@@ -153,17 +153,23 @@ private fun ObligationRow(line: ObligationLine, onClick: () -> Unit) {
     } else {
         "Due ${line.due.format(dueFormatter)}"
     }
+    val emphasis = if (line.overdue) {
+        MaterialTheme.colorScheme.error
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+    val detail = if (line.overdue) emphasis else MaterialTheme.colorScheme.onSurfaceVariant
     OutlinedCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Row(
             Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
-                Text(line.name, style = MaterialTheme.typography.titleMedium)
+                Text(line.name, style = MaterialTheme.typography.titleMedium, color = emphasis)
                 Text(
                     whenLabel,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = detail,
                     modifier = Modifier.padding(top = 2.dp),
                 )
             }
@@ -171,6 +177,7 @@ private fun ObligationRow(line: ObligationLine, onClick: () -> Unit) {
                 Money.format(line.amountCents),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
+                color = emphasis,
             )
         }
     }
@@ -204,7 +211,7 @@ private fun PaySheet(
         name = name ?: "Item",
         due = due,
         amountCents = amount ?: 0L,
-        overdue = due.isBefore(ui.today),
+        overdue = BudgetCalculator.isOverdue(due, ui.today),
         sourceId = sourceId,
         source = source,
     )
@@ -219,11 +226,17 @@ private fun PaySheet(
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 28.dp),
         ) {
-            Text(name ?: "Not found", style = MaterialTheme.typography.titleLarge)
+            val overdue = BudgetCalculator.isOverdue(due, ui.today)
+            val emphasis = if (overdue) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            }
+            Text(name ?: "Not found", style = MaterialTheme.typography.titleLarge, color = emphasis)
             Text(
-                "Due ${due.format(dueFormatter)}",
+                if (overdue) "Overdue · ${due.format(dueFormatter)}" else "Due ${due.format(dueFormatter)}",
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (overdue) emphasis else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
             )
             if (amount != null) {
@@ -231,6 +244,7 @@ private fun PaySheet(
                     Money.format(amount),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.SemiBold,
+                    color = emphasis,
                     modifier = Modifier.padding(top = 8.dp, bottom = 8.dp),
                 )
             }
@@ -250,7 +264,7 @@ private fun PaySheet(
                     if (event == null) {
                         MissingItem()
                     } else {
-                        val choices = BudgetCalculator.billPayChoices(event, due)
+                        val choices = BudgetCalculator.billPayChoices(event, due, ui.today)
                         if (choices.markOn != null && choices.markOn != due) {
                             Text(
                                 "Marks ${choices.markOn.format(dueFormatter)}, the next unpaid date.",

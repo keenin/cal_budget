@@ -110,6 +110,9 @@ private fun CardRow(
     val needsStatement = ui.prompts.any { it.cardId == card.id }
     val due = BudgetCalculator.balanceDueDate(card, ui.today)
     val remaining = BudgetCalculator.remainingOwed(card)
+    val clearedByAutopay = card.autoPay && !due.isAfter(ui.today)
+    val overdue = remaining > 0L && !clearedByAutopay && BudgetCalculator.isOverdue(due, ui.today)
+    val emphasis = if (overdue) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
     val dueLabel = when (card.dueMode) {
         DueMode.DAYS_AFTER_STATEMENT -> "Due ${card.daysAfterStatement} days after statement"
         DueMode.DAY_OF_MONTH -> "Due on day ${card.dueDay}"
@@ -124,24 +127,24 @@ private fun CardRow(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text(card.name, style = MaterialTheme.typography.titleMedium)
+                    Text(card.name, style = MaterialTheme.typography.titleMedium, color = emphasis)
                     Text(
                         "Statement day ${card.statementDay} · $dueLabel" + if (card.autoPay) " · Automatic" else "",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (overdue) emphasis else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 2.dp),
                     )
                     Text(
-                        if (needsStatement) {
-                            "Statement needed"
-                        } else {
-                            "Payment ${due.format(dueFormatter)}"
+                        when {
+                            overdue -> "Overdue · ${due.format(dueFormatter)}"
+                            needsStatement -> "Statement needed"
+                            else -> "Payment ${due.format(dueFormatter)}"
                         },
                         style = MaterialTheme.typography.bodyMedium,
-                        color = if (needsStatement) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
+                        color = when {
+                            overdue -> emphasis
+                            needsStatement -> MaterialTheme.colorScheme.primary
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
                         },
                         modifier = Modifier.padding(top = 2.dp),
                     )
@@ -150,6 +153,7 @@ private fun CardRow(
                     Money.format(remaining),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
+                    color = emphasis,
                 )
             }
             if (card.amountCents > 0L || card.paidTowardCents > 0L) {
@@ -374,7 +378,7 @@ fun CardEditScreen(
                 Column(Modifier.weight(1f)) {
                     Text("Automatic payment", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "Does not clear the remainder. It stays outstanding until you record a payment, even after the due date.",
+                        "Counts until the payment due date. On that day the unpaid remainder is treated as paid and drops off.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

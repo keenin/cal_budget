@@ -164,8 +164,12 @@ private fun EventRow(
     val nextUnpaid = if (event.kind == EventKind.PAY) {
         Schedule.nextOnOrAfter(event, today)
     } else {
-        BudgetCalculator.nextUnpaidOccurrence(event)
+        BudgetCalculator.nextUnpaidOccurrence(event, today)
     }
+    val overdue = nextUnpaid != null &&
+        event.kind != EventKind.PAY &&
+        BudgetCalculator.isOverdue(nextUnpaid, today)
+    val emphasis = if (overdue) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
     val subtitle = buildString {
         append(Schedule.recurrenceLabel(event))
         if (event.autoPay) append(" · Automatic")
@@ -174,7 +178,8 @@ private fun EventRow(
             when {
                 nextUnpaid == null && event.paidThroughEpochDay != null -> "Paid"
                 nextUnpaid == null -> "Ended"
-                nextUnpaid.isBefore(today) -> "unpaid ${nextUnpaid.format(listDate)}"
+                BudgetCalculator.isOverdue(nextUnpaid, today) && event.kind != EventKind.PAY ->
+                    "Overdue ${nextUnpaid.format(listDate)}"
                 else -> "next ${nextUnpaid.format(listDate)}"
             },
         )
@@ -189,11 +194,11 @@ private fun EventRow(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text(event.name, style = MaterialTheme.typography.titleMedium)
+                    Text(event.name, style = MaterialTheme.typography.titleMedium, color = emphasis)
                     Text(
                         subtitle,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (overdue) emphasis else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 2.dp),
                     )
                 }
@@ -202,6 +207,7 @@ private fun EventRow(
                         Money.format(event.amountCents),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
+                        color = emphasis,
                     )
                 }
             }
@@ -224,7 +230,7 @@ private fun PaidActions(
     onMarkPaid: () -> Unit,
     onUndoPaid: () -> Unit,
 ) {
-    val nextUnpaid = BudgetCalculator.nextUnpaidOccurrence(event)
+    val nextUnpaid = BudgetCalculator.nextUnpaidOccurrence(event, today)
     if (nextUnpaid == null && event.paidThroughEpochDay == null) return
     Row(verticalAlignment = Alignment.CenterVertically) {
         if (nextUnpaid != null) {
@@ -321,17 +327,22 @@ fun EventEditScreen(
                 )
             }
             if (!scheduleOnly && existing != null) {
-                val nextUnpaid = BudgetCalculator.nextUnpaidOccurrence(existing)
+                val nextUnpaid = BudgetCalculator.nextUnpaidOccurrence(existing, ui.today)
+                val overdue = nextUnpaid != null && BudgetCalculator.isOverdue(nextUnpaid, ui.today)
                 Text(
                     when {
                         nextUnpaid == null -> "Nothing left to pay on this schedule."
-                        nextUnpaid.isBefore(ui.today) ->
-                            "Unpaid since ${nextUnpaid.format(listDate)}. It stays until you mark it paid."
+                        BudgetCalculator.isOverdue(nextUnpaid, ui.today) ->
+                            "Overdue since ${nextUnpaid.format(listDate)}. It stays until you mark it paid."
                         else ->
                             "Next due ${nextUnpaid.format(listDate)}. Mark it paid if you already covered it."
                     },
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (overdue) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
                 )
                 PaidActions(
                     event = existing,
@@ -446,7 +457,7 @@ fun EventEditScreen(
                     Column(Modifier.weight(1f)) {
                         Text("Automatic payment", style = MaterialTheme.typography.titleMedium)
                         Text(
-                            "Does not mark it paid. It stays outstanding until you mark that occurrence paid, even after the due date.",
+                            "Counts until the due date. On that day it is treated as paid and drops off.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

@@ -90,15 +90,14 @@ object BudgetCalculator {
      * Three obligation totals. None includes paycheck amounts.
      *
      * Until payday: unpaid bills, housing, and card remainders due on or before the
-     * next payday, including dates that have already passed. If today is a payday,
-     * that next payday is the following one.
+     * next payday. If today is a payday, that next payday is the following one.
      * Next period: strictly after that payday through the payday after it.
      * Following period: strictly after that second payday through the third payday.
      * A missing later payday makes that window zero.
      *
-     * Automatic payment never marks an item paid. A bill or housing occurrence stays
-     * until it is explicitly marked paid. A card remainder stays until recorded
-     * payments cover it. Passing the due date does neither.
+     * Automatic payment removes an occurrence or card remainder on its due date and
+     * after. Without it, a past-due amount stays in Until payday until it is
+     * explicitly paid. An item is overdue only when today is after its due date.
      */
     fun calculate(
         events: List<CashEventEntity>,
@@ -208,45 +207,56 @@ object BudgetCalculator {
     }
 
     /** Occurrences in the window that are still unpaid. */
-    fun unpaidOccurrences(event: CashEventEntity, from: LocalDate, to: LocalDate): List<LocalDate> {
+    fun unpaidOccurrences(
+        event: CashEventEntity,
+        from: LocalDate,
+        to: LocalDate,
+        today: LocalDate,
+    ): List<LocalDate> {
         return Schedule.occurrencesBetween(event, from, to).filter { date ->
-            stillOwed(event, date)
+            stillOwed(event, date, today)
         }
     }
 
     /**
-     * An occurrence is still owed until that date is explicitly marked paid.
-     * Automatic payment and the calendar date do not clear it.
+     * Still owed unless this date was explicitly marked paid, or automatic payment
+     * has reached it. Automatic payment counts the due date itself as paid.
      */
-    fun stillOwed(event: CashEventEntity, date: LocalDate): Boolean {
-        val paidThrough = event.paidThroughEpochDay ?: return true
-        return date.toEpochDay() > paidThrough
+    fun stillOwed(event: CashEventEntity, date: LocalDate, today: LocalDate): Boolean {
+        val paidThrough = event.paidThroughEpochDay
+        if (paidThrough != null && date.toEpochDay() <= paidThrough) return false
+        if (event.autoPay && !date.isAfter(today)) return false
+        return true
     }
+
+    /** True only when [today] is strictly after [due]. The due date itself is not overdue. */
+    fun isOverdue(due: LocalDate, today: LocalDate): Boolean = due.isBefore(today)
 
     /**
      * What the breakdown sheet should offer for one bill or housing row.
-     * [markOn] is the earliest unpaid date when this row is still unpaid, so one
-     * tap covers one occurrence and does not skip a past-due one. Undo is available
-     * once any occurrence has been marked paid.
+     * [markOn] is the earliest date still owed, so one tap covers one occurrence.
+     * Undo is available once any occurrence has been marked paid.
      */
-    fun billPayChoices(event: CashEventEntity, rowDue: LocalDate): BillPayChoices {
+    fun billPayChoices(event: CashEventEntity, rowDue: LocalDate, today: LocalDate): BillPayChoices {
         val paidThrough = event.paidThroughEpochDay
-        val rowPaid = !stillOwed(event, rowDue)
+        val rowPaid = !stillOwed(event, rowDue, today)
         return BillPayChoices(
-            markOn = if (rowPaid) null else nextUnpaidOccurrence(event),
+            markOn = if (rowPaid) null else nextUnpaidOccurrence(event, today),
             canUndo = paidThrough != null,
         )
     }
 
     /**
-     * Earliest due date not covered by [CashEventEntity.paidThroughEpochDay].
-     * This can be before today. Automatic payment does not skip it.
+     * Earliest due date that is still owed. Automatic payment skips dates on or
+     * before [today]. Without it, a past-due date is returned until it is marked paid.
      */
-    fun nextUnpaidOccurrence(event: CashEventEntity): LocalDate? {
+    fun nextUnpaidOccurrence(event: CashEventEntity, today: LocalDate): LocalDate? {
         val from = event.paidThroughEpochDay
             ?.let { LocalDate.ofEpochDay(it).plusDays(1) }
             ?: LocalDate.ofEpochDay(event.startEpochDay)
-        return Schedule.nextOnOrAfter(event, from)
+        val candidate = Schedule.nextOnOrAfter(event, from) ?: return null
+        if (!event.autoPay || candidate.isAfter(today)) return candidate
+        return Schedule.nextOnOrAfter(event, today.plusDays(1))
     }
 
     /**
@@ -279,12 +289,12 @@ object BudgetCalculator {
             if (event.kind == EventKind.PAY) continue
             val start = LocalDate.ofEpochDay(event.startEpochDay)
             val rangeStart = if (includeEarlier && start.isBefore(from)) start else from
-            for (date in unpaidOccurrences(event, rangeStart, to)) {
+            for (date in unpaidOccurrences(event, rangeStart, to, today)) {
                 lines += ObligationLine(
                     name = event.name,
                     due = date,
                     amountCents = event.amountCents,
-                    overdue = date.isBefore(today),
+                    overdue = isOverdue(date, today),
                     sourceId = event.id,
                     source = if (event.kind == EventKind.MORTGAGE) {
                         ObligationSource.MORTGAGE
@@ -298,13 +308,14 @@ object BudgetCalculator {
             val remaining = remainingOwed(card)
             if (remaining <= 0L) continue
             val due = balanceDueDate(card, today)
+            if (card.autoPay && !due.isAfter(today)) continue
             val earlierThanWindow = !includeEarlier && due.isBefore(from)
             if (earlierThanWindow || due.isAfter(to)) continue
             lines += ObligationLine(
                 name = card.name,
                 due = due,
                 amountCents = remaining,
-                overdue = due.isBefore(today),
+                overdue = isOverdue(due, today),
                 sourceId = card.id,
                 source = ObligationSource.CARD,
             )
