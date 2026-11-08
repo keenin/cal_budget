@@ -44,7 +44,7 @@ fun SettingsScreen(
         ) {
             Text("How the numbers work", style = MaterialTheme.typography.titleLarge)
             Text(
-                "Until payday is bills, housing, and card payments due from today through the next payday. Overdue card balances stay in that number unless the card is set to automatic payment. If today is payday, the next payday is the one after today.",
+                "Until payday is unpaid bills, housing, and card payments due through the next payday, including ones whose date has already passed. If today is payday, the next payday is the one after today.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -54,7 +54,7 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                "A marked-paid bill date is left out of all three. Automatic payment on a bill, housing payment, or card drops that amount off on its due date. Otherwise a bill still counts that day, and a past-due card remainder stays until you record a payment. A partial card payment reduces only the unpaid remainder. Paycheck amounts are not part of any number.",
+                "A bill or housing date stays in the totals until you mark that occurrence paid, including after its due date. A card remainder stays until you record a payment that covers it, including after its due date. Automatic payment does not clear either one. A partial card payment reduces only what is still unpaid. Each occurrence is counted once. Paycheck amounts are not part of any number.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

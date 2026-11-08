@@ -164,7 +164,7 @@ private fun EventRow(
     val nextUnpaid = if (event.kind == EventKind.PAY) {
         Schedule.nextOnOrAfter(event, today)
     } else {
-        BudgetCalculator.nextUnpaidOccurrence(event, today)
+        BudgetCalculator.nextUnpaidOccurrence(event)
     }
     val subtitle = buildString {
         append(Schedule.recurrenceLabel(event))
@@ -172,9 +172,10 @@ private fun EventRow(
         append(" · ")
         append(
             when {
-                nextUnpaid != null -> "next ${nextUnpaid.format(listDate)}"
-                event.paidThroughEpochDay != null -> "Paid"
-                else -> "Ended"
+                nextUnpaid == null && event.paidThroughEpochDay != null -> "Paid"
+                nextUnpaid == null -> "Ended"
+                nextUnpaid.isBefore(today) -> "unpaid ${nextUnpaid.format(listDate)}"
+                else -> "next ${nextUnpaid.format(listDate)}"
             },
         )
     }
@@ -223,7 +224,7 @@ private fun PaidActions(
     onMarkPaid: () -> Unit,
     onUndoPaid: () -> Unit,
 ) {
-    val nextUnpaid = BudgetCalculator.nextUnpaidOccurrence(event, today)
+    val nextUnpaid = BudgetCalculator.nextUnpaidOccurrence(event)
     if (nextUnpaid == null && event.paidThroughEpochDay == null) return
     Row(verticalAlignment = Alignment.CenterVertically) {
         if (nextUnpaid != null) {
@@ -320,12 +321,14 @@ fun EventEditScreen(
                 )
             }
             if (!scheduleOnly && existing != null) {
-                val nextUnpaid = BudgetCalculator.nextUnpaidOccurrence(existing, ui.today)
+                val nextUnpaid = BudgetCalculator.nextUnpaidOccurrence(existing)
                 Text(
-                    if (nextUnpaid == null) {
-                        "Nothing left to pay on this schedule."
-                    } else {
-                        "Next due ${nextUnpaid.format(listDate)}. Mark it paid if you already covered it."
+                    when {
+                        nextUnpaid == null -> "Nothing left to pay on this schedule."
+                        nextUnpaid.isBefore(ui.today) ->
+                            "Unpaid since ${nextUnpaid.format(listDate)}. It stays until you mark it paid."
+                        else ->
+                            "Next due ${nextUnpaid.format(listDate)}. Mark it paid if you already covered it."
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -443,7 +446,7 @@ fun EventEditScreen(
                     Column(Modifier.weight(1f)) {
                         Text("Automatic payment", style = MaterialTheme.typography.titleMedium)
                         Text(
-                            "Counts until the due date. On that day it is treated as paid and drops off the home totals.",
+                            "Does not mark it paid. It stays outstanding until you mark that occurrence paid, even after the due date.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

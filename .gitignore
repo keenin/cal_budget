@@ -11,6 +11,10 @@
 *.ap_
 *.aab
 output-metadata.json
+*.keystore
+*.jks
+*.p12
+*.pem
 
 app/build/
 .kotlin/

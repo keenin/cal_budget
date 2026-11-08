@@ -33,7 +33,10 @@ data class BudgetSnapshot(
     val followingPayday: LocalDate?,
     /** Payday after [followingPayday]. End of the period after next. Null when none remains. */
     val thirdPayday: LocalDate? = null,
-    /** Unpaid obligations due from today through [nextPayday], inclusive. */
+    /**
+     * Unpaid obligations due on or before [nextPayday], including ones whose date
+     * has already passed. Each occurrence appears once.
+     */
     val untilPayday: List<ObligationLine> = emptyList(),
     /** Unpaid obligations due strictly after [nextPayday] through [followingPayday], inclusive. */
     val nextPeriod: List<ObligationLine> = emptyList(),
@@ -86,11 +89,16 @@ object BudgetCalculator {
     /**
      * Three obligation totals. None includes paycheck amounts.
      *
-     * Until payday: today through the next payday, inclusive. If today is a payday,
+     * Until payday: unpaid bills, housing, and card remainders due on or before the
+     * next payday, including dates that have already passed. If today is a payday,
      * that next payday is the following one.
      * Next period: strictly after that payday through the payday after it.
      * Following period: strictly after that second payday through the third payday.
      * A missing later payday makes that window zero.
+     *
+     * Automatic payment never marks an item paid. A bill or housing occurrence stays
+     * until it is explicitly marked paid. A card remainder stays until recorded
+     * payments cover it. Passing the due date does neither.
      */
     fun calculate(
         events: List<CashEventEntity>,
@@ -101,16 +109,16 @@ object BudgetCalculator {
             ?: return BudgetSnapshot(nextPayday = null, followingPayday = null)
         val following = paydayAfter(events, payday)
         val third = following?.let { paydayAfter(events, it) }
-        val until = windowLines(events, cards, today, today, payday, includeEarlierCards = true)
+        val until = windowLines(events, cards, today, today, payday, includeEarlier = true)
         val next = if (following == null) {
             emptyList()
         } else {
-            windowLines(events, cards, today, payday.plusDays(1), following, includeEarlierCards = false)
+            windowLines(events, cards, today, payday.plusDays(1), following, includeEarlier = false)
         }
         val afterNext = if (following == null || third == null) {
             emptyList()
         } else {
-            windowLines(events, cards, today, following.plusDays(1), third, includeEarlierCards = false)
+            windowLines(events, cards, today, following.plusDays(1), third, includeEarlier = false)
         }
         return BudgetSnapshot(
             nextPayday = payday,
@@ -200,47 +208,44 @@ object BudgetCalculator {
     }
 
     /** Occurrences in the window that are still unpaid. */
-    fun unpaidOccurrences(event: CashEventEntity, from: LocalDate, to: LocalDate, today: LocalDate): List<LocalDate> {
+    fun unpaidOccurrences(event: CashEventEntity, from: LocalDate, to: LocalDate): List<LocalDate> {
         return Schedule.occurrencesBetween(event, from, to).filter { date ->
-            stillOwed(event, date, today)
+            stillOwed(event, date)
         }
     }
 
     /**
-     * An occurrence is still owed unless it was marked paid, or automatic payment
-     * has reached its due date. On the due date itself it is assumed paid.
+     * An occurrence is still owed until that date is explicitly marked paid.
+     * Automatic payment and the calendar date do not clear it.
      */
-    fun stillOwed(event: CashEventEntity, date: LocalDate, today: LocalDate): Boolean {
-        val paidThrough = event.paidThroughEpochDay
-        if (paidThrough != null && date.toEpochDay() <= paidThrough) return false
-        if (event.autoPay && !date.isAfter(today)) return false
-        return true
+    fun stillOwed(event: CashEventEntity, date: LocalDate): Boolean {
+        val paidThrough = event.paidThroughEpochDay ?: return true
+        return date.toEpochDay() > paidThrough
     }
 
     /**
      * What the breakdown sheet should offer for one bill or housing row.
-     * [markOn] is the next unpaid date when this row is still unpaid. Undo is available
+     * [markOn] is the earliest unpaid date when this row is still unpaid, so one
+     * tap covers one occurrence and does not skip a past-due one. Undo is available
      * once any occurrence has been marked paid.
      */
-    fun billPayChoices(event: CashEventEntity, rowDue: LocalDate, today: LocalDate): BillPayChoices {
+    fun billPayChoices(event: CashEventEntity, rowDue: LocalDate): BillPayChoices {
         val paidThrough = event.paidThroughEpochDay
-        val rowPaid = !stillOwed(event, rowDue, today)
+        val rowPaid = !stillOwed(event, rowDue)
         return BillPayChoices(
-            markOn = if (rowPaid) null else nextUnpaidOccurrence(event, today),
+            markOn = if (rowPaid) null else nextUnpaidOccurrence(event),
             canUndo = paidThrough != null,
         )
     }
 
-    /** Next due date that is not covered by [CashEventEntity.paidThroughEpochDay]. */
-    fun nextUnpaidOccurrence(event: CashEventEntity, today: LocalDate): LocalDate? {
-        val paidThrough = event.paidThroughEpochDay?.let(LocalDate::ofEpochDay)
-        var from = when {
-            paidThrough == null || paidThrough.isBefore(today) -> today
-            else -> paidThrough.plusDays(1)
-        }
-        if (event.autoPay && !from.isAfter(today)) {
-            from = today.plusDays(1)
-        }
+    /**
+     * Earliest due date not covered by [CashEventEntity.paidThroughEpochDay].
+     * This can be before today. Automatic payment does not skip it.
+     */
+    fun nextUnpaidOccurrence(event: CashEventEntity): LocalDate? {
+        val from = event.paidThroughEpochDay
+            ?.let { LocalDate.ofEpochDay(it).plusDays(1) }
+            ?: LocalDate.ofEpochDay(event.startEpochDay)
         return Schedule.nextOnOrAfter(event, from)
     }
 
@@ -267,12 +272,14 @@ object BudgetCalculator {
         today: LocalDate,
         from: LocalDate,
         to: LocalDate,
-        includeEarlierCards: Boolean,
+        includeEarlier: Boolean,
     ): List<ObligationLine> {
         val lines = ArrayList<ObligationLine>()
         for (event in events) {
             if (event.kind == EventKind.PAY) continue
-            for (date in unpaidOccurrences(event, from, to, today)) {
+            val start = LocalDate.ofEpochDay(event.startEpochDay)
+            val rangeStart = if (includeEarlier && start.isBefore(from)) start else from
+            for (date in unpaidOccurrences(event, rangeStart, to)) {
                 lines += ObligationLine(
                     name = event.name,
                     due = date,
@@ -291,8 +298,7 @@ object BudgetCalculator {
             val remaining = remainingOwed(card)
             if (remaining <= 0L) continue
             val due = balanceDueDate(card, today)
-            if (card.autoPay && !due.isAfter(today)) continue
-            val earlierThanWindow = !includeEarlierCards && due.isBefore(from)
+            val earlierThanWindow = !includeEarlier && due.isBefore(from)
             if (earlierThanWindow || due.isAfter(to)) continue
             lines += ObligationLine(
                 name = card.name,

@@ -250,7 +250,7 @@ private fun PaySheet(
                     if (event == null) {
                         MissingItem()
                     } else {
-                        val choices = BudgetCalculator.billPayChoices(event, due, ui.today)
+                        val choices = BudgetCalculator.billPayChoices(event, due)
                         if (choices.markOn != null && choices.markOn != due) {
                             Text(
                                 "Marks ${choices.markOn.format(dueFormatter)}, the next unpaid date.",

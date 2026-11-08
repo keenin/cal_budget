@@ -26,10 +26,10 @@ From a terminal, with `ANDROID_HOME` pointing at your SDK:
 ```
 
 
-The debug APK is `app/build/outputs/apk/debug/app-debug.apk`. It includes `arm64-v8a` and `x86_64`, so it runs on a current phone and on an x86_64 emulator.
+The debug APK is `app/build/outputs/apk/debug/app-debug.apk`. It includes `arm64-v8a` and `x86_64`, so it runs on a current phone and on an x86_64 emulator. It is signed with that machine’s debug key. That signature is not the stable update key, so this APK will not update an install signed with a different key.
 
 
-A smaller release APK, signed with the debug key so it can be installed locally, is arm64-only:
+A smaller release APK is arm64-only. Without signing environment variables it is unsigned and cannot be installed:
 
 
 ```bash
@@ -37,7 +37,7 @@ A smaller release APK, signed with the debug key so it can be installed locally,
 ```
 
 
-Output: `app/build/outputs/apk/release/app-release.apk`. For an x86_64 emulator build of that same release variant:
+Output: `app/build/outputs/apk/release/app-release-unsigned.apk`. For an x86_64 emulator build of that same release variant:
 
 
 ```bash
@@ -45,11 +45,17 @@ Output: `app/build/outputs/apk/release/app-release.apk`. For an x86_64 emulator 
 ```
 
 
+To sign that release with the existing key, set `CALBUDGET_KEYSTORE_PATH`, `CALBUDGET_KEYSTORE_PASSWORD`, `CALBUDGET_KEY_ALIAS`, and `CALBUDGET_KEY_PASSWORD` in the environment and run `assembleRelease` again. The build refuses to fall back to a debug key. Do not commit the keystore or those passwords.
+
+
+The same signed file is what you install the first time and what you install over an existing copy. GitHub Actions builds it and attaches it to a Release on the default branch when those four values are stored as Actions secrets (`CALBUDGET_KEYSTORE_BASE64` for the keystore file, plus the three password and alias secrets). The Release is public because this repository is public. If any secret is missing, that workflow fails and does not upload an APK.
+
+
 ## Using it
 
 
 - **Pay schedule.** Set when you get paid: weekly, biweekly, monthly, or every N days, weeks, or months. There is no paycheck amount. Pick a recent or upcoming payday as the anchor date. You can set an end date or leave it ongoing. The home screen uses the next three paydays as the ends of its three windows. If you add more than one schedule, the soonest date wins.
-- **Bills and mortgage / housing.** Same recurrence options, plus a name, amount, and optional notes. Mark the next due date paid if you pay early; that occurrence drops off whichever number it would have been in, and later ones still count. Undo paid clears the latest mark. Turn on **Automatic payment** when the bill is paid on its due date: it stays in the totals until that day, then drops off. Leave it off and it still counts on the due date.
-- **Credit cards.** Each card has a name, statement day, when the payment is due (days after the statement, or a day of the month), and the statement balance. Record a payment against that balance if you pay only part of it; the home numbers count what is left. Clear payment undoes that for the current statement. A new statement balance starts with nothing paid. Turn on **Automatic payment** when the statement is paid on its due date: the unpaid remainder stays in the totals until that day, then drops off. Leave it off and a past-due remainder stays in Until payday until you record a payment.
+- **Bills and mortgage / housing.** Same recurrence options, plus a name, amount, and optional notes. Mark the earliest unpaid date paid when you have covered it; that occurrence drops off, and later ones still count. Undo paid clears the latest mark. An occurrence that is still unpaid stays in Until payday after its date passes. **Automatic payment** is only a reminder and does not mark a due date paid.
+- **Credit cards.** Each card has a name, statement day, when the payment is due (days after the statement, or a day of the month), and the statement balance. Record a payment against that balance if you pay only part of it; the home numbers count what is left. **Paid** applies the full remainder. Clear payment undoes that for the current statement. A new statement balance starts with nothing paid. A remainder that is still unpaid stays in Until payday after its due date. **Automatic payment** is only a reminder and does not clear that remainder.
 - **Statement prompt.** The first time you open the app on or after a card’s statement date, if you have not entered that cycle’s balance, a dialog asks for the statement balance before the home numbers appear. Cards that still need a balance are shown one after another. Skip is only for this visit; the next launch asks again until you save a balance.
 - **Settings.** Explains the formula, lets you choose system, light, or dark appearance, and can erase all on-device data.

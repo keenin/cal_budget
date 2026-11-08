@@ -97,7 +97,7 @@ class BudgetViewModel(private val repository: BudgetRepository) : ViewModel() {
         viewModelScope.launch {
             val event = repository.getEvent(id) ?: return@launch
             if (event.kind == EventKind.PAY) return@launch
-            val next = BudgetCalculator.nextUnpaidOccurrence(event, today.value) ?: return@launch
+            val next = BudgetCalculator.nextUnpaidOccurrence(event) ?: return@launch
             repository.upsertEvent(event.copy(paidThroughEpochDay = next.toEpochDay()))
         }
     }
