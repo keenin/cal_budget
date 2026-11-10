@@ -32,3 +32,20 @@ jobs:
 
       - name: Unsigned release build
         run: ./gradlew assembleRelease --no-daemon
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Web unit tests
+        working-directory: web
+        run: node --test test/*.test.js
+
+      - name: Build static site
+        working-directory: web
+        run: node scripts/build.mjs
