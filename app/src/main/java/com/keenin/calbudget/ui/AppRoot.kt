@@ -117,6 +117,9 @@ fun AppRoot(
             composable(Routes.SETTINGS) {
                 SettingsScreen(
                     themeMode = themeMode,
+                    events = ui.events,
+                    cards = ui.cards,
+                    loading = ui.loading,
                     onThemeMode = onThemeMode,
                     onOpenMenu = { menuOpen = true },
                     onClearAll = { viewModel.clearAll() },
