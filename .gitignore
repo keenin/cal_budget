@@ -18,3 +18,4 @@ output-metadata.json
 
 app/build/
 .kotlin/
+web/dist/
