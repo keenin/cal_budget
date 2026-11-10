@@ -394,10 +394,23 @@ function settingsHtml(state) {
     : 'Persistent storage is not granted yet. Browsers can still remove site data. Export a backup, and use Keep data on this device after you have added Cal Budget to your home screen.';
   return `<div class="view-inner settings">
     <h2 class="section-title">How the numbers work</h2>
-    <p>Until payday is unpaid bills, housing, and card payments due through the next payday. Without automatic payment, a past-due amount stays in that number. If today is payday, the next payday is the one after today.</p>
-    <p>Next period is what is due after that payday, through the payday after it. Following period is what is due after that, through the third payday. If a later payday does not exist, that number is $0.00.</p>
-    <p>Automatic payment drops a bill, housing payment, or card remainder off on its due date. Without it, that amount stays until you mark the occurrence paid or record a card payment that covers it. It is overdue, and shown in red, only after the due date. A partial card payment reduces only what is still unpaid. Each occurrence is counted once. Paycheck amounts are not part of any number.</p>
-    <p>Amounts are US dollars. Everything is stored on this device.</p>
+    <h3 class="group-label">Until payday</h3>
+    <p>This number is the total of the unpaid bills, housing payments, and card payments that are due on or before your next payday. If today is a payday, your next payday is the one after today.</p>
+    <h3 class="group-label">Next period</h3>
+    <p>This number is the total that is due after your next payday, through the payday after it.</p>
+    <h3 class="group-label">Following period</h3>
+    <p>This number is the total that is due after the following payday, through your third payday. If the app cannot find a later payday, the number is $0.00.</p>
+    <h3 class="group-label">Automatic payment</h3>
+    <ul>
+      <li>If automatic payment is on, the app removes the amount on its due date.</li>
+      <li>If automatic payment is off, the amount stays until you mark it paid. For a card, you can also record a payment that is equal to or more than the amount.</li>
+      <li>If you do not pay an amount by its due date, it stays in the Until payday number. On the day after the due date, the app shows it in red.</li>
+      <li>A partial card payment decreases only the unpaid amount.</li>
+      <li>The app counts each payment one time only.</li>
+      <li>Your pay amounts are not part of these numbers.</li>
+    </ul>
+    <h3 class="group-label">Your data</h3>
+    <p>All amounts are in US dollars. The app keeps all data on this device only.</p>
     <h2 class="section-title">Appearance</h2>
     <p class="group-label">Dark mode</p>
     <div class="chips">

@@ -479,6 +479,18 @@ textarea:focus-visible {
 
 .settings p { margin: 0; color: var(--muted); }
 
+.settings h3.group-label { margin: 0; }
+
+.settings ul {
+  margin: 0;
+  padding: 0 0 0 1.2rem;
+  color: var(--muted);
+}
+
+.settings li { padding-left: 0.35rem; }
+
+.settings li + li { margin-top: 0.75rem; }
+
 .scrim {
   position: fixed;
   inset: 0;
