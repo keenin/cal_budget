@@ -1,11 +1,10 @@
-const CACHE = 'calbudget-v2';
+const CACHE = 'calbudget-v3';
 
 const ASSETS = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
   '/css/app.css',
-  '/js/theme-boot.js',
   '/js/dates.js',
   '/js/money.js',
   '/js/schedule.js',

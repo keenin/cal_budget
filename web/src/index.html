@@ -2,25 +2,24 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#F7F6F3" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#121412" media="(prefers-color-scheme: dark)">
-  <meta name="color-scheme" content="light dark">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="color-scheme" content="dark">
+  <script>(function(){var r=document.documentElement,t=null,s=null;try{t=localStorage.getItem("calbudget-theme");s=localStorage.getItem("calbudget-text-size");}catch(e){}if(t==="light"||t==="dark")r.dataset.theme=t;if(s==="small"||s==="large"||s==="xlarge")r.dataset.textSize=s;var d=r.dataset.theme==="dark"||(r.dataset.theme!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);var c=d?"#121412":"#F7F6F3";r.style.colorScheme=d?"dark":"light";r.style.backgroundColor=c;document.querySelectorAll('meta[name="theme-color"]').forEach(function(n){n.remove();});var m=document.createElement("meta");m.name="theme-color";m.content=c;document.head.appendChild(m);var cs=document.querySelector('meta[name="color-scheme"]');if(cs)cs.setAttribute("content",d?"dark":"light");})();</script>
   <meta name="description" content="What you owe until payday. Bills, housing, and cards stay on this device.">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Cal Budget">
   <meta name="format-detection" content="telephone=no">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-ZudHxLLMuaY2spYZOt8BJj26BD8T8OwqZ30U0q0+eQc='; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
   <title>Cal Budget</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icons/favicon-32.png" type="image/png" sizes="32x32">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="stylesheet" href="/css/app.css">
-  <script src="/js/theme-boot.js"></script>
 </head>
 <body>
+  <div class="edge-fill" aria-hidden="true"></div>
   <div class="shell">
     <header class="bar" id="bar"></header>
     <main class="view" id="view"></main>

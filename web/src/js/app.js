@@ -702,17 +702,16 @@ function applyTheme(theme) {
   else delete root.dataset.theme;
   const dark = theme === 'DARK' || (theme !== 'LIGHT' && colorQuery.matches);
   const color = dark ? '#121412' : '#F7F6F3';
-  document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
-    meta.content = color;
-  });
-  let plain = document.querySelector('meta[name="theme-color"][data-active="true"]');
-  if (!plain) {
-    plain = document.createElement('meta');
-    plain.name = 'theme-color';
-    plain.dataset.active = 'true';
-    document.head.append(plain);
-  }
+  document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+  document.documentElement.style.backgroundColor = color;
+  document.body.style.backgroundColor = color;
+  document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => meta.remove());
+  const plain = document.createElement('meta');
+  plain.name = 'theme-color';
   plain.content = color;
+  document.head.append(plain);
+  const scheme = document.querySelector('meta[name="color-scheme"]');
+  if (scheme) scheme.content = dark ? 'dark' : 'light';
 }
 
 function readTextSize() {
