@@ -9,7 +9,7 @@ import {
   remainingOwed,
   untilSpan,
 } from './calculator.js';
-import { formatLong, formatWindow, fromEpochDay, isBefore } from './dates.js';
+import { formatLong, formatWindow, fromEpochDay, isAfter, isBefore } from './dates.js';
 import { format, toInput } from './money.js';
 import { nextOnOrAfter, recurrenceLabel } from './schedule.js';
 import { editCardPath, editEventPath, listPath } from './router.js';
@@ -135,7 +135,7 @@ export function sheetHtml(state) {
   } else if (!event) {
     actions = '<p class="help">This item is no longer on the device.</p>';
   } else {
-    const choices = billPayChoices(event, due);
+    const choices = billPayChoices(event, due, state.today);
     const note = choices.markOn && choices.markOn !== due
       ? `<p class="help">Marks ${esc(formatWindow(choices.markOn))}, the next unpaid date.</p>`
       : '';
@@ -262,22 +262,22 @@ function listHtml(state) {
 }
 
 function eventRowHtml(event, today) {
-  const next = event.kind === 'PAY' ? nextOnOrAfter(event, today) : nextUnpaidOccurrence(event);
+  const next = event.kind === 'PAY' ? nextOnOrAfter(event, today) : nextUnpaidOccurrence(event, today);
   let when = 'Ended';
   let overdue = false;
   if (next == null && event.paidThroughEpochDay != null) when = 'Paid';
   else if (next == null) when = 'Ended';
-  else if (isBefore(next, today)) {
-    when = `unpaid ${formatWindow(next)}`;
+  else if (event.kind !== 'PAY' && isBefore(next, today)) {
+    when = `Overdue ${formatWindow(next)}`;
     overdue = true;
   } else when = `next ${formatWindow(next)}`;
   const pay = event.kind === 'PAY' && event.amountCents > 0 ? ` · ${format(event.amountCents)}` : '';
   const sub = `${recurrenceLabel(event)}${event.autoPay ? ' · Automatic' : ''} · ${when}${pay}`;
   const amount = event.kind === 'PAY' ? '' : `<span class="card-amount">${esc(format(event.amountCents))}</span>`;
-  const actions = event.kind === 'PAY' ? '' : `<div class="card-actions">${paidButtons(event)}</div>`;
+  const actions = event.kind === 'PAY' ? '' : `<div class="card-actions">${paidButtons(event, today)}</div>`;
   return `<article class="card">
     <button type="button" class="card-main" data-action="nav" data-path="${editEventPath(event.kind, event.id)}">
-      <span class="row-text"><span class="card-title">${esc(event.name)}</span><span class="card-sub${overdue ? ' overdue' : ''}">${esc(sub)}</span></span>
+      <span class="row-text"><span class="card-title${overdue ? ' overdue' : ''}">${esc(event.name)}</span><span class="card-sub${overdue ? ' overdue' : ''}">${esc(sub)}</span></span>
       ${amount}
     </button>
     ${actions}
@@ -318,7 +318,7 @@ function editEventHtml(state) {
     ${dateField('start', scheduleOnly ? 'Payday date' : 'Start date', start)}
     ${switchRow('ongoing', 'Ongoing', 'Turn off to set an end date', ongoing)}
     <div data-panel="end" ${ongoing ? 'hidden' : ''}>${dateField('end', 'End date', end)}</div>
-    ${scheduleOnly ? '' : switchRow('autoPay', 'Automatic payment', 'Does not mark it paid. It stays outstanding until you mark that occurrence paid, even after the due date.', Boolean(existing?.autoPay))}
+    ${scheduleOnly ? '' : switchRow('autoPay', 'Automatic payment', 'Counts until the due date. On that day it is treated as paid and drops off.', Boolean(existing?.autoPay))}
     ${notesField(existing?.notes || '')}
     <button type="submit" class="btn btn-wide">Save</button>
     ${existing ? `<button type="button" class="btn-danger btn-wide" data-action="ask-delete" data-target="event" data-id="${existing.id}">Delete</button>` : ''}
@@ -334,17 +334,18 @@ function cardListHtml(state) {
   const rows = state.cards.map((card) => {
     const due = balanceDueDate(card, state.today);
     const remaining = remainingOwed(card);
+    const clearedByAutopay = card.autoPay && !isAfter(due, state.today);
     const dueLabel = card.dueMode === 'DAYS_AFTER_STATEMENT'
       ? `Due ${card.daysAfterStatement} days after statement`
       : `Due on day ${card.dueDay}`;
     const needs = prompts.has(card.id);
-    const overdue = !needs && remaining > 0 && isBefore(due, state.today);
+    const overdue = !needs && remaining > 0 && !clearedByAutopay && isBefore(due, state.today);
     const status = needs ? 'Statement needed' : (overdue ? `Overdue · ${formatWindow(due)}` : `Payment ${formatWindow(due)}`);
     const pay = card.amountCents > 0 || card.paidTowardCents > 0 ? cardPayHtml(card, `pay-${card.id}`) : '';
     return `<article class="card">
       <button type="button" class="card-main" data-action="nav" data-path="${editCardPath(card.id)}">
         <span class="row-text">
-          <span class="card-title">${esc(card.name)}</span>
+          <span class="card-title${overdue ? ' overdue' : ''}">${esc(card.name)}</span>
           <span class="card-sub">Statement day ${card.statementDay} · ${esc(dueLabel)}${card.autoPay ? ' · Automatic' : ''}</span>
           <span class="card-sub${overdue ? ' overdue' : ''}">${esc(status)}</span>
         </span>
@@ -379,7 +380,7 @@ function editCardHtml(state) {
     </div>
     ${moneyField('amount', 'Amount owed', existing && existing.amountCents > 0 ? toInput(existing.amountCents) : '', false)}
     <p class="help">Full statement balance for this cycle. A payment reduces what the home numbers count and leaves this balance as entered. Leave blank until the statement prompt if you don’t know it yet.</p>
-    ${switchRow('autoPay', 'Automatic payment', 'Does not clear the remainder. It stays outstanding until you record a payment, even after the due date.', Boolean(existing?.autoPay))}
+    ${switchRow('autoPay', 'Automatic payment', 'Counts until the payment due date. On that day the unpaid remainder is treated as paid and drops off.', Boolean(existing?.autoPay))}
     <div data-live="card-pay">${existing && (existing.amountCents > 0 || existing.paidTowardCents > 0) ? cardPayHtml(existing, `pay-${existing.id}`) : ''}</div>
     ${notesField(existing?.notes || '')}
     <button type="submit" class="btn btn-wide">Save</button>
@@ -393,10 +394,10 @@ function settingsHtml(state) {
     : 'Persistent storage is not granted yet. Browsers can still remove site data. Export a backup, and use Keep data on this device after you have added Cal Budget to your home screen.';
   return `<div class="view-inner settings">
     <h2 class="section-title">How the numbers work</h2>
-    <p>Until payday is unpaid bills, housing, and card payments due through the next payday, including ones whose date has already passed. If today is payday, the next payday is the one after today.</p>
+    <p>Until payday is unpaid bills, housing, and card payments due through the next payday. Without automatic payment, a past-due amount stays in that number. If today is payday, the next payday is the one after today.</p>
     <p>Next period is what is due after that payday, through the payday after it. Following period is what is due after that, through the third payday. If a later payday does not exist, that number is $0.00.</p>
-    <p>A bill or housing date stays in the totals until you mark that occurrence paid, including after its due date. A card remainder stays until you record a payment that covers it, including after its due date. Automatic payment does not clear either one. A partial card payment reduces only what is still unpaid. Each occurrence is counted once. Paycheck amounts are not part of any number.</p>
-    <p>Starting the day after a due date, an unpaid item is labeled Overdue. Amounts are US dollars. Everything is stored on this device.</p>
+    <p>Automatic payment drops a bill, housing payment, or card remainder off on its due date. Without it, that amount stays until you mark the occurrence paid or record a card payment that covers it. It is overdue, and shown in red, only after the due date. A partial card payment reduces only what is still unpaid. Each occurrence is counted once. Paycheck amounts are not part of any number.</p>
+    <p>Amounts are US dollars. Everything is stored on this device.</p>
     <h2 class="section-title">Appearance</h2>
     <p class="group-label">Dark mode</p>
     <div class="chips">
@@ -435,17 +436,17 @@ function statementHtml(state, prompt, total) {
 }
 
 function paidStatusHtml(event, today) {
-  const next = nextUnpaidOccurrence(event);
+  const next = nextUnpaidOccurrence(event, today);
   const text = next == null
     ? 'Nothing left to pay on this schedule.'
     : isBefore(next, today)
-      ? `Unpaid since ${formatWindow(next)}. It stays until you mark it paid.`
+      ? `Overdue since ${formatWindow(next)}. It stays until you mark it paid.`
       : `Next due ${formatWindow(next)}. Mark it paid if you already covered it.`;
-  return `<p class="status-copy">${esc(text)}</p><div class="inline-actions">${paidButtons(event)}</div>`;
+  return `<p class="status-copy${isBefore(next || today, today) ? ' overdue' : ''}">${esc(text)}</p><div class="inline-actions">${paidButtons(event, today)}</div>`;
 }
 
-function paidButtons(event) {
-  const next = nextUnpaidOccurrence(event);
+function paidButtons(event, today) {
+  const next = nextUnpaidOccurrence(event, today);
   if (next == null && event.paidThroughEpochDay == null) return '';
   const mark = next ? `<button type="button" class="btn-text" data-action="mark-paid" data-id="${event.id}">Mark paid</button>` : '';
   const undo = event.paidThroughEpochDay != null

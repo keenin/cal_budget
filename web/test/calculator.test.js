@@ -7,6 +7,7 @@ import {
   calculate,
   clearPayment,
   followingSpan,
+  isOverdue,
   nextPayday,
   nextSpan,
   nextUnpaidOccurrence,
@@ -169,7 +170,7 @@ test('a paid occurrence is skipped and later ones still count, including after t
   const before = calculate([pay('2026-09-04'), bill], [], today);
   assert.equal(before.untilPaydayCents, 8000);
   assert.equal(before.nextPeriodCents, 8000);
-  assert.equal(nextUnpaidOccurrence(bill), '2026-09-11');
+  assert.equal(nextUnpaidOccurrence(bill, today), '2026-09-11');
 
   const paid = { ...bill, paidThroughEpochDay: epochDay('2026-09-11') };
   const after = calculate([pay('2026-09-04'), paid], [], today);
@@ -177,7 +178,7 @@ test('a paid occurrence is skipped and later ones still count, including after t
   assert.deepEqual(views(after.untilPayday), [
     view({ name: 'Groceries', due: '2026-09-18', amountCents: 4000, overdue: false, source: 'BILL', sourceId: 11 }),
   ]);
-  assert.equal(nextUnpaidOccurrence(paid), '2026-09-18');
+  assert.equal(nextUnpaidOccurrence(paid, today), '2026-09-18');
   assert.equal(previousStrictlyBefore(paid, '2026-09-18'), '2026-09-11');
   assert.equal(previousStrictlyBefore(paid, '2026-09-11'), null);
 
@@ -297,99 +298,20 @@ test('statement prompts queue uncaptured cards and skip snoozed ones', () => {
   );
 });
 
-test('autopay does not remove an item, and overdue starts the day after the due date', () => {
-  const today = '2026-09-11';
-  const events = [
-    pay('2026-09-04'),
-    event({
-      id: 21,
-      kind: 'BILL',
-      recurrence: 'MONTHLY',
-      start: '2026-09-10',
-      amount: 3000,
-      name: 'Due yesterday',
-      autoPay: true,
-    }),
-    event({
-      id: 22,
-      kind: 'BILL',
-      recurrence: 'MONTHLY',
-      start: today,
-      amount: 2000,
-      name: 'Due today',
-      autoPay: true,
-    }),
-    event({
-      id: 23,
-      kind: 'BILL',
-      recurrence: 'MONTHLY',
-      start: '2026-09-12',
-      amount: 4000,
-      name: 'Due tomorrow',
-      autoPay: true,
-    }),
-    event({
-      id: 24,
-      kind: 'MORTGAGE',
-      recurrence: 'MONTHLY',
-      start: '2026-09-10',
-      amount: 10000,
-      name: 'Auto housing',
-      autoPay: true,
-    }),
-    event({
-      id: 25,
-      kind: 'BILL',
-      recurrence: 'MONTHLY',
-      start: '2026-09-10',
-      amount: 1500,
-      name: 'Manual overdue',
-      autoPay: false,
-    }),
-  ];
-  const dueYesterdayCard = card({
-    id: 1,
-    statementDay: 20,
-    amount: 20000,
-    captured: '2026-08-20',
-    daysAfter: 21,
-    name: 'Card yesterday',
-    autoPay: true,
-  });
-  const dueTodayCard = card({
-    id: 2,
-    statementDay: 21,
-    amount: 30000,
-    captured: '2026-08-21',
-    daysAfter: 21,
-    name: 'Card today',
-    autoPay: true,
-  });
-  const snapshot = calculate(events, [dueYesterdayCard, dueTodayCard], today);
-  assert.equal(snapshot.nextPayday, '2026-09-18');
-  assert.deepEqual(views(snapshot.untilPayday), [
-    view({ name: 'Auto housing', due: '2026-09-10', amountCents: 10000, overdue: true, source: 'MORTGAGE', sourceId: 24 }),
-    view({ name: 'Card yesterday', due: '2026-09-10', amountCents: 20000, overdue: true, source: 'CARD', sourceId: 1 }),
-    view({ name: 'Due yesterday', due: '2026-09-10', amountCents: 3000, overdue: true, source: 'BILL', sourceId: 21 }),
-    view({ name: 'Manual overdue', due: '2026-09-10', amountCents: 1500, overdue: true, source: 'BILL', sourceId: 25 }),
-    view({ name: 'Card today', due: today, amountCents: 30000, overdue: false, source: 'CARD', sourceId: 2 }),
-    view({ name: 'Due today', due: today, amountCents: 2000, overdue: false, source: 'BILL', sourceId: 22 }),
-    view({ name: 'Due tomorrow', due: '2026-09-12', amountCents: 4000, overdue: false, source: 'BILL', sourceId: 23 }),
-  ]);
-  assert.equal(snapshot.untilPaydayCents, 70500);
-  assert.equal(snapshot.untilPayday.every((line) => Number.isSafeInteger(line.amountCents)), true);
-  const dueToday = snapshot.untilPayday.find((line) => line.name === 'Due today');
-  assert.equal(dueToday.overdue, false);
-  assert.equal(dueToday.autoPay, true);
-  assertNoDuplicates(snapshot);
+test('overdue starts the day after the due date', () => {
+  const due = '2026-09-11';
+  assert.equal(isOverdue(due, '2026-09-10'), false);
+  assert.equal(isOverdue(due, due), false);
+  assert.equal(isOverdue(due, '2026-09-12'), true);
 });
 
-test('the day after an autopay due date keeps the item and marks it overdue', () => {
+test('automatic payment drops off on the due date and stays off', () => {
+  const due = '2026-09-11';
   const bill = event({
     id: 31,
     kind: 'BILL',
     recurrence: 'WEEKLY',
-    start: '2026-09-11',
+    start: due,
     amount: 4000,
     name: 'Auto weekly',
     autoPay: true,
@@ -398,83 +320,141 @@ test('the day after an autopay due date keeps the item and marks it overdue', ()
     id: 32,
     kind: 'MORTGAGE',
     recurrence: 'MONTHLY',
-    start: '2026-09-11',
+    start: due,
     amount: 10000,
     name: 'Auto housing',
     autoPay: true,
   });
   const autoCard = card({
-    statementDay: 9,
+    statementDay: 21,
     amount: 5000,
-    captured: '2026-09-09',
+    captured: '2026-08-21',
     daysAfter: 21,
     name: 'Auto card',
     autoPay: true,
   });
   const events = [pay('2026-09-04'), bill, housing];
-  const onDue = calculate(events, [autoCard], '2026-09-11');
-  const dueToday = onDue.untilPayday.find((line) => line.name === 'Auto weekly');
-  assert.equal(dueToday.due, '2026-09-11');
-  assert.equal(dueToday.overdue, false);
 
-  const dayAfter = calculate(events, [autoCard], '2026-09-12');
-  assert.deepEqual(views(dayAfter.untilPayday), [
-    view({ name: 'Auto housing', due: '2026-09-11', amountCents: 10000, overdue: true, source: 'MORTGAGE', sourceId: 32 }),
-    view({ name: 'Auto weekly', due: '2026-09-11', amountCents: 4000, overdue: true, source: 'BILL', sourceId: 31 }),
+  const before = calculate(events, [autoCard], '2026-09-10');
+  assert.deepEqual(views(before.untilPayday), [
+    view({ name: 'Auto card', due, amountCents: 5000, overdue: false, source: 'CARD', sourceId: 1 }),
+    view({ name: 'Auto housing', due, amountCents: 10000, overdue: false, source: 'MORTGAGE', sourceId: 32 }),
+    view({ name: 'Auto weekly', due, amountCents: 4000, overdue: false, source: 'BILL', sourceId: 31 }),
     view({ name: 'Auto weekly', due: '2026-09-18', amountCents: 4000, overdue: false, source: 'BILL', sourceId: 31 }),
   ]);
-  assert.equal(dayAfter.untilPayday.some((line) => line.autoPay && line.overdue), true);
-  assertNoDuplicates(dayAfter);
+  assert.equal(before.untilPayday.every((line) => line.overdue === false), true);
+  assert.equal(nextUnpaidOccurrence(bill, '2026-09-10'), due);
 
-  const marked = { ...bill, paidThroughEpochDay: epochDay('2026-09-11') };
-  const afterPay = calculate([pay('2026-09-04'), marked, housing], [], '2026-09-12');
-  assert.equal(afterPay.untilPayday.some((line) => line.name === 'Auto weekly' && line.due === '2026-09-11'), false);
-  assert.equal(nextUnpaidOccurrence(marked), '2026-09-18');
-  const markedRow = billPayChoices(marked, '2026-09-11');
-  assert.equal(markedRow.markOn, null);
-  assert.equal(markedRow.canUndo, true);
-  assert.equal(billPayChoices(marked, '2026-09-18').markOn, '2026-09-18');
+  const onDue = calculate(events, [autoCard], due);
+  assert.deepEqual(views(onDue.untilPayday), [
+    view({ name: 'Auto weekly', due: '2026-09-18', amountCents: 4000, overdue: false, source: 'BILL', sourceId: 31 }),
+  ]);
+  assert.equal(onDue.untilPayday.some((line) => line.due === due), false);
+  assert.equal(onDue.untilPayday.some((line) => line.overdue), false);
+  assert.equal(nextUnpaidOccurrence(bill, due), '2026-09-18');
+
+  const after = calculate(events, [autoCard], '2026-09-12');
+  assert.deepEqual(views(after.untilPayday), views(onDue.untilPayday));
+  const all = [...after.untilPayday, ...after.nextPeriod, ...after.followingPeriod];
+  assert.equal(all.some((line) => line.due === due), false);
+  assert.equal(all.some((line) => line.overdue), false);
+  assertNoDuplicates(after);
 });
 
-test('autopay card payments still control the remainder', () => {
-  const today = '2026-09-20';
-  const events = [pay('2026-09-25')];
-  const owed = card({
-    statementDay: 1,
-    amount: 100000,
-    captured: '2026-09-01',
-    daysAfter: 5,
-    name: 'Auto card',
-    autoPay: true,
+test('manual expenses stay outstanding and turn overdue the day after the due date', () => {
+  const due = '2026-09-11';
+  const bill = event({
+    id: 41,
+    kind: 'BILL',
+    recurrence: 'WEEKLY',
+    start: due,
+    amount: 4000,
+    name: 'Manual weekly',
   });
-  assert.equal(balanceDueDate(owed, today), '2026-09-06');
-  const half = recordPayment(owed, 40000);
-  const partial = calculate(events, [half], today);
-  assert.deepEqual(views(partial.untilPayday), [
-    view({ name: 'Auto card', due: '2026-09-06', amountCents: 60000, overdue: true, source: 'CARD', sourceId: 1 }),
+  const housing = event({
+    id: 42,
+    kind: 'MORTGAGE',
+    recurrence: 'MONTHLY',
+    start: due,
+    amount: 10000,
+    name: 'Manual housing',
+  });
+  const manualCard = card({
+    statementDay: 21,
+    amount: 5000,
+    captured: '2026-08-21',
+    daysAfter: 21,
+    name: 'Manual card',
+  });
+  const events = [pay('2026-09-04'), bill, housing];
+
+  const before = calculate(events, [manualCard], '2026-09-10');
+  const dueTomorrow = before.untilPayday.filter((line) => line.due === due);
+  assert.equal(dueTomorrow.length, 3);
+  assert.equal(dueTomorrow.every((line) => line.overdue === false), true);
+
+  const onDue = calculate(events, [manualCard], due);
+  const dueLines = onDue.untilPayday.filter((line) => line.due === due);
+  assert.equal(dueLines.length, 3);
+  assert.equal(dueLines.every((line) => line.overdue === false), true);
+  assert.equal(onDue.untilPayday.some((line) => line.name === 'Manual weekly' && line.due === '2026-09-18' && !line.overdue), true);
+
+  const after = calculate(events, [manualCard], '2026-09-12');
+  assert.deepEqual(views(after.untilPayday), [
+    view({ name: 'Manual card', due, amountCents: 5000, overdue: true, source: 'CARD', sourceId: 1 }),
+    view({ name: 'Manual housing', due, amountCents: 10000, overdue: true, source: 'MORTGAGE', sourceId: 42 }),
+    view({ name: 'Manual weekly', due, amountCents: 4000, overdue: true, source: 'BILL', sourceId: 41 }),
+    view({ name: 'Manual weekly', due: '2026-09-18', amountCents: 4000, overdue: false, source: 'BILL', sourceId: 41 }),
   ]);
-  const paidOff = recordPayment(half, 60000);
-  assert.equal(calculate(events, [paidOff], today).untilPayday.length, 0);
-  const restored = calculate(events, [clearPayment(paidOff)], today);
-  assert.equal(restored.untilPaydayCents, 100000);
-  const nextCycle = applyStatementBalance(half, 80000, '2026-10-01');
-  assert.equal(nextCycle.autoPay, true);
-  assert.equal(nextCycle.paidTowardCents, 0);
-  const afterStatement = calculate(events, [nextCycle], '2026-10-01');
-  assert.deepEqual(views(afterStatement.untilPayday), [
-    view({ name: 'Auto card', due: '2026-10-06', amountCents: 80000, overdue: false, source: 'CARD', sourceId: 1 }),
-  ]);
+  assert.equal(nextUnpaidOccurrence(bill, '2026-09-12'), due);
+  assertNoDuplicates(after);
 });
+
+test('a partial autopay card drops off on its due date and a manual remainder stays overdue', () => {
+  const events = [pay('2026-09-04')];
+  const owed = card({
+    statementDay: 5,
+    amount: 100000,
+    captured: '2026-09-05',
+    daysAfter: 12,
+    name: 'Card',
+  });
+  const half = recordPayment(owed, 40000);
+  const beforeDue = calculate(events, [half], '2026-09-10');
+  assert.equal(remainingOwed(half), 60000);
+  assert.deepEqual(views(beforeDue.untilPayday), [
+    view({ name: 'Card', due: '2026-09-17', amountCents: 60000, overdue: false, source: 'CARD', sourceId: 1 }),
+  ]);
+
+  const manualAfter = calculate(events, [half], '2026-09-18');
+  assert.deepEqual(views(manualAfter.untilPayday.filter((line) => line.source === 'CARD')), [
+    view({ name: 'Card', due: '2026-09-17', amountCents: 60000, overdue: true, source: 'CARD', sourceId: 1 }),
+  ]);
+
+  const auto = { ...half, autoPay: true };
+  const autoBefore = calculate(events, [auto], '2026-09-16');
+  assert.equal(autoBefore.untilPaydayCents, 60000);
+  assert.equal(autoBefore.untilPayday[0].overdue, false);
+  const autoOnDue = calculate(events, [auto], '2026-09-17');
+  assert.equal(autoOnDue.untilPayday.length, 0);
+  assert.equal(remainingOwed(auto), 60000);
+  const autoAfter = calculate(events, [auto], '2026-09-18');
+  const autoLines = [...autoAfter.untilPayday, ...autoAfter.nextPeriod, ...autoAfter.followingPeriod];
+  assert.equal(autoLines.some((line) => line.name === 'Card'), false);
+  assert.equal(autoLines.some((line) => line.overdue), false);
+});
+
 
 test('bill pay choices mark the earliest unpaid date', () => {
   const bill = event({ kind: 'BILL', recurrence: 'WEEKLY', start: '2026-09-11', amount: 4000, name: 'Groceries' });
-  const laterRow = billPayChoices(bill, '2026-09-18');
+  const today = '2026-09-10';
+  const laterRow = billPayChoices(bill, '2026-09-18', today);
   assert.equal(laterRow.markOn, '2026-09-11');
   assert.equal(laterRow.canUndo, false);
   const paid = { ...bill, paidThroughEpochDay: epochDay('2026-09-11') };
-  assert.equal(billPayChoices(paid, '2026-09-11').markOn, null);
-  assert.equal(billPayChoices(paid, '2026-09-11').canUndo, true);
-  assert.equal(billPayChoices(paid, '2026-09-18').markOn, '2026-09-18');
+  assert.equal(billPayChoices(paid, '2026-09-11', today).markOn, null);
+  assert.equal(billPayChoices(paid, '2026-09-11', today).canUndo, true);
+  assert.equal(billPayChoices(paid, '2026-09-18', today).markOn, '2026-09-18');
 });
 
 test('the soonest pay schedule wins, and a single payday leaves the later windows at zero', () => {

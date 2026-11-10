@@ -461,7 +461,7 @@ async function saveStatementForm(form) {
 async function markPaid(id) {
   const event = state.events.find((item) => item.id === id);
   if (!event || event.kind === 'PAY') return;
-  const next = nextUnpaidOccurrence(event);
+  const next = nextUnpaidOccurrence(event, state.today);
   if (!next) return;
   await runSave(async () => {
     await saveEvent({ ...event, paidThroughEpochDay: epochDay(next) });

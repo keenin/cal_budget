@@ -2,7 +2,7 @@
 
 A static, installable copy of Cal Budget. It opens from a link, can be added to an iPhone or Android home screen, and keeps every bill, card, and paycheck date on that device. There is no account, no server, and no analytics.
 
-The numbers match the Android app. Until payday, Next period, and Following period are the three pay windows. Automatic payment is only a reminder: an item stays until you mark it paid, and it is labeled Overdue starting the day after its due date. Amounts are integer cents.
+The numbers match the pay windows in the Android app. Automatic payment drops a bill, housing payment, or card remainder on its due date. With automatic payment off, the item stays until you mark it paid, and it is labeled Overdue starting the day after its due date. Amounts are integer cents.
 
 ## Run locally
 

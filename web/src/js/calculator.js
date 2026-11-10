@@ -1,10 +1,10 @@
 /**
  * Home-screen windows. Ported from the Android BudgetCalculator.
  *
- * Automatic payment is a reminder only. It does not mark a bill, housing
- * payment, or card remainder paid, and it does not drop the item on its due
- * date. An unpaid item stays in the totals until it is explicitly paid.
- * It is overdue starting the day after the due date (due today is not overdue).
+ * Automatic payment drops a bill, housing occurrence, or card remainder on its
+ * due date. That item is not listed that day or after, and it is never overdue.
+ * With automatic payment off, the item stays until it is marked paid, and it
+ * is overdue only once today is after the due date.
  *
  * Amounts are integer cents. This module never divides them.
  */
@@ -122,38 +122,50 @@ export function balanceDueDate(card, today) {
   );
 }
 
-export function unpaidOccurrences(event, from, to) {
-  return occurrencesBetween(event, from, to).filter((date) => stillOwed(event, date));
+export function unpaidOccurrences(event, from, to, today) {
+  return occurrencesBetween(event, from, to).filter((date) => stillOwed(event, date, today));
 }
 
 /**
- * An occurrence is still owed until that date is explicitly marked paid.
- * Automatic payment and the calendar date do not clear it.
+ * Still owed unless this date was explicitly marked paid, or automatic payment
+ * has reached it. Automatic payment counts the due date itself as paid.
  */
-export function stillOwed(event, date) {
-  if (event.paidThroughEpochDay == null) return true;
-  return epochDay(date) > event.paidThroughEpochDay;
+export function stillOwed(event, date, today) {
+  if (event.paidThroughEpochDay != null && epochDay(date) <= event.paidThroughEpochDay) return false;
+  if (event.autoPay && !isAfter(date, today)) return false;
+  return true;
+}
+
+/** True only when today is strictly after the due date. The due date itself is not overdue. */
+export function isOverdue(due, today) {
+  return isBefore(due, today);
 }
 
 /**
  * What the breakdown sheet should offer for one bill or housing row.
- * markOn is the earliest unpaid date when this row is still unpaid, so one
- * tap covers one occurrence and does not skip a past-due one.
+ * markOn is the earliest date still owed. Undo is available once any
+ * occurrence has been marked paid.
  */
-export function billPayChoices(event, rowDue) {
-  const rowPaid = !stillOwed(event, rowDue);
+export function billPayChoices(event, rowDue, today) {
+  const rowPaid = !stillOwed(event, rowDue, today);
   return {
-    markOn: rowPaid ? null : nextUnpaidOccurrence(event),
+    markOn: rowPaid ? null : nextUnpaidOccurrence(event, today),
     canUndo: event.paidThroughEpochDay != null,
   };
 }
 
-/** Earliest due date not covered by paidThroughEpochDay. This can be before today. */
-export function nextUnpaidOccurrence(event) {
+/**
+ * Earliest due date that is still owed. Automatic payment skips dates on or
+ * before today. Without it, a past-due date stays until it is marked paid.
+ */
+export function nextUnpaidOccurrence(event, today) {
   const from = event.paidThroughEpochDay == null
     ? fromEpochDay(event.startEpochDay)
     : plusDays(fromEpochDay(event.paidThroughEpochDay), 1);
-  return nextOnOrAfter(event, from);
+  const candidate = nextOnOrAfter(event, from);
+  if (candidate == null) return null;
+  if (!event.autoPay || isAfter(candidate, today)) return candidate;
+  return nextOnOrAfter(event, plusDays(today, 1));
 }
 
 /**
@@ -180,12 +192,12 @@ function windowLines(events, cards, today, from, to, includeEarlier) {
     if (event.kind === 'PAY') continue;
     const start = fromEpochDay(event.startEpochDay);
     const rangeStart = includeEarlier && isBefore(start, from) ? start : from;
-    for (const date of unpaidOccurrences(event, rangeStart, to)) {
-      lines.push({
-        name: event.name,
-        due: date,
-        amountCents: cents(event.amountCents),
-        overdue: isBefore(date, today),
+            for (const date of unpaidOccurrences(event, rangeStart, to, today)) {
+                lines.push({
+                    name: event.name,
+                    due: date,
+                    amountCents: cents(event.amountCents),
+                    overdue: isOverdue(date, today),
         sourceId: event.id,
         source: event.kind === 'MORTGAGE' ? 'MORTGAGE' : 'BILL',
         autoPay: Boolean(event.autoPay),
@@ -195,14 +207,15 @@ function windowLines(events, cards, today, from, to, includeEarlier) {
   for (const card of cards) {
     const remaining = remainingOwed(card);
     if (remaining <= 0) continue;
-    const due = balanceDueDate(card, today);
-    const earlierThanWindow = !includeEarlier && isBefore(due, from);
-    if (earlierThanWindow || isAfter(due, to)) continue;
-    lines.push({
-      name: card.name,
-      due,
-      amountCents: remaining,
-      overdue: isBefore(due, today),
+            const due = balanceDueDate(card, today);
+            if (card.autoPay && !isAfter(due, today)) continue;
+            const earlierThanWindow = !includeEarlier && isBefore(due, from);
+            if (earlierThanWindow || isAfter(due, to)) continue;
+            lines.push({
+                name: card.name,
+                due,
+                amountCents: remaining,
+                overdue: isOverdue(due, today),
       sourceId: card.id,
       source: 'CARD',
       autoPay: Boolean(card.autoPay),
