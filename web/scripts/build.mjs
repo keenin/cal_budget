@@ -21,10 +21,10 @@ for (const file of files) {
 const version = hash.digest('hex').slice(0, 12);
 const swPath = join(dist, 'sw.js');
 const sw = await readFile(swPath, 'utf8');
-if (!sw.includes("'calbudget-dev'") && !sw.includes('"calbudget-dev"')) {
-  throw new Error('sw.js is missing the calbudget-dev cache name');
+if (!sw.includes("'calbudget-v2'") && !sw.includes('"calbudget-v2"')) {
+  throw new Error('sw.js is missing the calbudget-v2 cache name');
 }
-await writeFile(swPath, sw.replaceAll('calbudget-dev', `calbudget-${version}`));
+await writeFile(swPath, sw.replaceAll('calbudget-v2', `calbudget-${version}`));
 console.log(`Built web/dist (cache calbudget-${version})`);
 
 async function collect(dir) {

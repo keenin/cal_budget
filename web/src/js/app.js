@@ -39,6 +39,7 @@ const state = {
   events: [],
   cards: [],
   theme: 'SYSTEM',
+  textSize: readTextSize(),
   today: todayIso(),
   snoozed: new Set(),
   menuOpen: false,
@@ -133,6 +134,8 @@ async function boot() {
     state.events = data.events;
     state.cards = data.cards;
     state.theme = data.theme || 'SYSTEM';
+    state.textSize = readTextSize();
+    applyTextSize(state.textSize);
     mirrorTheme(state.theme);
     state.ready = true;
     state.persisted = await persistentStorageGranted();
@@ -155,7 +158,7 @@ function paint() {
     bar.innerHTML = barHtml(state);
     keys.bar = barKey;
   }
-  const settingsExtra = state.route.name === 'settings' ? `:${state.theme}:${state.persisted}` : '';
+  const settingsExtra = state.route.name === 'settings' ? `:${state.theme}:${state.persisted}:${state.textSize}` : '';
   const editing = state.route.name === 'edit-event' || state.route.name === 'edit-card';
   const viewKey = `${routeKey}:${editing ? 'form' : state.revision}:${state.ready}:${state.failed}${settingsExtra}`;
   const viewChanged = keys.view !== viewKey;
@@ -238,6 +241,8 @@ function onClick(event) {
     setChip(button);
   } else if (action === 'theme') {
     setTheme(button.dataset.theme);
+  } else if (action === 'text-size') {
+    setTextSize(button.dataset.size);
   } else if (action === 'export') {
     exportBackup();
   } else if (action === 'import') {
@@ -700,6 +705,43 @@ function applyTheme(theme) {
   document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
     meta.content = color;
   });
+  let plain = document.querySelector('meta[name="theme-color"][data-active="true"]');
+  if (!plain) {
+    plain = document.createElement('meta');
+    plain.name = 'theme-color';
+    plain.dataset.active = 'true';
+    document.head.append(plain);
+  }
+  plain.content = color;
+}
+
+function readTextSize() {
+  try {
+    const stored = localStorage.getItem('calbudget-text-size');
+    if (stored === 'small' || stored === 'large' || stored === 'xlarge') return stored;
+  } catch {
+    /* Default size still applies. */
+  }
+  return 'default';
+}
+
+function applyTextSize(size) {
+  const next = size === 'small' || size === 'large' || size === 'xlarge' ? size : 'default';
+  state.textSize = next;
+  if (next === 'default') delete document.documentElement.dataset.textSize;
+  else document.documentElement.dataset.textSize = next;
+  return next;
+}
+
+function setTextSize(size) {
+  const next = applyTextSize(size);
+  try {
+    if (next === 'default') localStorage.removeItem('calbudget-text-size');
+    else localStorage.setItem('calbudget-text-size', next);
+  } catch {
+    /* The choice still applies for this visit. */
+  }
+  paint();
 }
 
 function mirrorTheme(theme) {
