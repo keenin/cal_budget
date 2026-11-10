@@ -125,6 +125,10 @@ importFile.addEventListener('change', async () => {
 const colorQuery = window.matchMedia('(prefers-color-scheme: dark)');
 colorQuery.addEventListener('change', () => applyTheme(state.theme));
 
+document.addEventListener('gesturestart', (event) => {
+  event.preventDefault();
+}, { passive: false });
+
 boot();
 registerServiceWorker();
 

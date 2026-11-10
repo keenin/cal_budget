@@ -88,6 +88,7 @@ html, body {
   min-height: 100lvh;
   background-color: var(--bg, #121412);
   color: var(--ink);
+  touch-action: manipulation;
 }
 
 .edge-fill {
@@ -111,7 +112,9 @@ body {
   line-height: 1.4;
 }
 
-button, input, textarea { font: inherit; color: inherit; }
+button, input, select, textarea { font: inherit; color: inherit; }
+
+input, select, textarea { font-size: max(16px, 1rem); }
 
 button { cursor: pointer; }
 
@@ -378,7 +381,7 @@ textarea:focus-visible {
   border-radius: 12px;
   padding: 0.75rem 0.9rem;
   min-height: 3.15rem;
-  font-size: 1.05rem;
+  font-size: max(16px, 1.05rem);
 }
 
 .field textarea { min-height: 88px; resize: vertical; }
