@@ -39,6 +39,7 @@ const state = {
   events: [],
   cards: [],
   theme: 'SYSTEM',
+  textSize: readTextSize(),
   today: todayIso(),
   snoozed: new Set(),
   menuOpen: false,
@@ -124,6 +125,10 @@ importFile.addEventListener('change', async () => {
 const colorQuery = window.matchMedia('(prefers-color-scheme: dark)');
 colorQuery.addEventListener('change', () => applyTheme(state.theme));
 
+document.addEventListener('gesturestart', (event) => {
+  event.preventDefault();
+}, { passive: false });
+
 boot();
 registerServiceWorker();
 
@@ -133,6 +138,8 @@ async function boot() {
     state.events = data.events;
     state.cards = data.cards;
     state.theme = data.theme || 'SYSTEM';
+    state.textSize = readTextSize();
+    applyTextSize(state.textSize);
     mirrorTheme(state.theme);
     state.ready = true;
     state.persisted = await persistentStorageGranted();
@@ -155,7 +162,7 @@ function paint() {
     bar.innerHTML = barHtml(state);
     keys.bar = barKey;
   }
-  const settingsExtra = state.route.name === 'settings' ? `:${state.theme}:${state.persisted}` : '';
+  const settingsExtra = state.route.name === 'settings' ? `:${state.theme}:${state.persisted}:${state.textSize}` : '';
   const editing = state.route.name === 'edit-event' || state.route.name === 'edit-card';
   const viewKey = `${routeKey}:${editing ? 'form' : state.revision}:${state.ready}:${state.failed}${settingsExtra}`;
   const viewChanged = keys.view !== viewKey;
@@ -238,6 +245,8 @@ function onClick(event) {
     setChip(button);
   } else if (action === 'theme') {
     setTheme(button.dataset.theme);
+  } else if (action === 'text-size') {
+    setTextSize(button.dataset.size);
   } else if (action === 'export') {
     exportBackup();
   } else if (action === 'import') {
@@ -697,9 +706,45 @@ function applyTheme(theme) {
   else delete root.dataset.theme;
   const dark = theme === 'DARK' || (theme !== 'LIGHT' && colorQuery.matches);
   const color = dark ? '#121412' : '#F7F6F3';
-  document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
-    meta.content = color;
-  });
+  document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+  document.documentElement.style.backgroundColor = color;
+  document.body.style.backgroundColor = color;
+  document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => meta.remove());
+  const plain = document.createElement('meta');
+  plain.name = 'theme-color';
+  plain.content = color;
+  document.head.append(plain);
+  const scheme = document.querySelector('meta[name="color-scheme"]');
+  if (scheme) scheme.content = dark ? 'dark' : 'light';
+}
+
+function readTextSize() {
+  try {
+    const stored = localStorage.getItem('calbudget-text-size');
+    if (stored === 'small' || stored === 'large' || stored === 'xlarge') return stored;
+  } catch {
+    /* Default size still applies. */
+  }
+  return 'default';
+}
+
+function applyTextSize(size) {
+  const next = size === 'small' || size === 'large' || size === 'xlarge' ? size : 'default';
+  state.textSize = next;
+  if (next === 'default') delete document.documentElement.dataset.textSize;
+  else document.documentElement.dataset.textSize = next;
+  return next;
+}
+
+function setTextSize(size) {
+  const next = applyTextSize(size);
+  try {
+    if (next === 'default') localStorage.removeItem('calbudget-text-size');
+    else localStorage.setItem('calbudget-text-size', next);
+  } catch {
+    /* The choice still applies for this visit. */
+  }
+  paint();
 }
 
 function mirrorTheme(theme) {
@@ -714,13 +759,17 @@ function mirrorTheme(theme) {
 
 function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
-  let hadController = Boolean(navigator.serviceWorker.controller);
+  const hadController = Boolean(navigator.serviceWorker.controller);
+  let reloading = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (!hadController) {
-      hadController = true;
-      return;
-    }
+    if (!hadController || reloading) return;
+    if (sessionStorage.getItem('calbudget-sw-reload') === '1') return;
+    reloading = true;
+    sessionStorage.setItem('calbudget-sw-reload', '1');
     window.location.reload();
+  });
+  window.addEventListener('load', () => {
+    sessionStorage.removeItem('calbudget-sw-reload');
   });
   navigator.serviceWorker.register('/sw.js').catch(() => {
     /* Offline support waits until the next visit if registration fails. */

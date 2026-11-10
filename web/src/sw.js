@@ -1,11 +1,10 @@
-const CACHE = 'calbudget-dev';
+const CACHE = 'calbudget-v5';
 
 const ASSETS = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
   '/css/app.css',
-  '/js/theme-boot.js',
   '/js/dates.js',
   '/js/money.js',
   '/js/schedule.js',
@@ -23,7 +22,14 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)));
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE);
+    await Promise.all(ASSETS.map(async (url) => {
+      const response = await fetch(new Request(url, { cache: 'reload' }));
+      if (!response.ok) throw new Error(`Could not cache ${url}`);
+      await cache.put(url, response);
+    }));
+  })());
   self.skipWaiting();
 });
 

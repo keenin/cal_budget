@@ -405,6 +405,13 @@ function settingsHtml(state) {
       ${themeChip('LIGHT', 'Light', state.theme)}
       ${themeChip('DARK', 'Dark', state.theme)}
     </div>
+    <p class="group-label">Text size</p>
+    <div class="chips">
+      ${textSizeChip('small', 'Small', state.textSize)}
+      ${textSizeChip('default', 'Default', state.textSize)}
+      ${textSizeChip('large', 'Large', state.textSize)}
+      ${textSizeChip('xlarge', 'Extra large', state.textSize)}
+    </div>
     <h2 class="section-title">Data</h2>
     <button type="button" class="btn-secondary" data-action="export">Export backup</button>
     <button type="button" class="btn-secondary" data-action="import">Import backup</button>
@@ -519,6 +526,11 @@ function themeChip(mode, label, selected) {
   return `<button type="button" class="chip${selected === mode ? ' selected' : ''}" data-action="theme" data-theme="${mode}" aria-pressed="${selected === mode}">${esc(label)}</button>`;
 }
 
+function textSizeChip(size, label, selected) {
+  const current = selected || 'default';
+  return `<button type="button" class="chip${current === size ? ' selected' : ''}" data-action="text-size" data-size="${size}" aria-pressed="${current === size}">${esc(label)}</button>`;
+}
+
 function menuButton() {
   return `<button type="button" class="icon-button" data-action="menu" aria-label="Menu">${iconMenu()}</button>`;
 }
@@ -538,7 +550,7 @@ function menuCurrent(route, path) {
 }
 
 function amountClass(text, primary) {
-  const size = text.length >= 14 ? 'xs' : text.length >= 12 ? 'sm' : text.length >= 10 ? 'md' : 'lg';
+  const size = text.length >= 16 ? 'xs' : text.length >= 14 ? 'sm' : text.length >= 12 ? 'md' : 'lg';
   return `amount ${primary ? 'primary' : 'secondary'} ${size}`;
 }
 
