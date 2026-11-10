@@ -759,13 +759,17 @@ function mirrorTheme(theme) {
 
 function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
-  let hadController = Boolean(navigator.serviceWorker.controller);
+  const hadController = Boolean(navigator.serviceWorker.controller);
+  let reloading = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (!hadController) {
-      hadController = true;
-      return;
-    }
+    if (!hadController || reloading) return;
+    if (sessionStorage.getItem('calbudget-sw-reload') === '1') return;
+    reloading = true;
+    sessionStorage.setItem('calbudget-sw-reload', '1');
     window.location.reload();
+  });
+  window.addEventListener('load', () => {
+    sessionStorage.removeItem('calbudget-sw-reload');
   });
   navigator.serviceWorker.register('/sw.js').catch(() => {
     /* Offline support waits until the next visit if registration fails. */
