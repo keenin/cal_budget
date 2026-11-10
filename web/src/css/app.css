@@ -538,12 +538,16 @@ textarea:focus-visible {
   position: fixed;
   z-index: 21;
   top: 0;
-  right: 0;
+  left: 0;
   bottom: 0;
-  width: min(312px, 88vw);
+  width: min(20rem, 85vw);
   background: var(--surface);
-  box-shadow: var(--shadow);
-  padding: calc(28px + env(safe-area-inset-top)) 12px calc(16px + env(safe-area-inset-bottom));
+  box-shadow: 8px 0 28px rgba(0, 0, 0, 0.22);
+  padding:
+    calc(28px + env(safe-area-inset-top))
+    12px
+    calc(16px + env(safe-area-inset-bottom))
+    max(12px, env(safe-area-inset-left));
   display: flex;
   flex-direction: column;
 }
