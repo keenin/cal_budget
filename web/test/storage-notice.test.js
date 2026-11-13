@@ -148,7 +148,7 @@ test('settings names the persistence status and the banner explains Brave', () =
 
 test('service worker precaches the notice module under a new cache name', () => {
   const sw = readFileSync(new URL('../src/sw.js', import.meta.url), 'utf8');
-  assert.match(sw, /calbudget-v7/);
-  assert.doesNotMatch(sw, /calbudget-v6/);
+  assert.match(sw, /calbudget-v8/);
+  assert.doesNotMatch(sw, /calbudget-v7/);
   assert.match(sw, /\/js\/storage-notice\.js/);
 });

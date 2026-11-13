@@ -439,7 +439,7 @@ function settingsHtml(state) {
     <p class="storage-status">${esc(storageStatusLabel(state.persisted))}</p>
     <p>${esc(persisted)}</p>
     <button type="button" class="btn-secondary" data-action="erase">Erase all data</button>
-    <p class="fine">Web version 1.1</p>
+    <p class="fine">Web version 1.2</p>
   </div>`;
 }
 
