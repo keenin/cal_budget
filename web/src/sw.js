@@ -1,4 +1,4 @@
-const CACHE = 'calbudget-v6';
+const CACHE = 'calbudget-v7';
 
 const ASSETS = [
   '/',
