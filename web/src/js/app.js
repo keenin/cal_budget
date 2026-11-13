@@ -12,13 +12,17 @@ import { parse, sanitizeInput } from './money.js';
 import { editCardPath, editEventPath, listPath, parseHash } from './router.js';
 import { previousStrictlyBefore, statementOnOrBefore } from './schedule.js';
 import {
+  dismissStorageNotice,
+  isStorageNoticeDismissed,
+  resolvePersistentStorage,
+  shouldShowStorageNotice,
+} from './storage-notice.js';
+import {
   clearBudget,
   deleteCard,
   deleteEvent,
   loadAll,
-  persistentStorageGranted,
   replaceBudget,
-  requestPersistentStorage,
   saveCard,
   saveEvent,
   saveTheme,
@@ -30,6 +34,7 @@ import {
   modalHtml,
   paidSlotHtml,
   sheetHtml,
+  storageNoticeHtml,
   viewHtml,
 } from './ui.js';
 
@@ -48,14 +53,16 @@ const state = {
   modal: null,
   pendingImport: null,
   persisted: false,
+  storageNotice: false,
   revision: 0,
   saving: false,
 };
 
-const keys = { bar: '', view: '', menu: '', sheet: '', modal: '' };
+const keys = { bar: '', view: '', menu: '', sheet: '', modal: '', notice: '' };
 let toastTimer = 0;
 
 const bar = document.getElementById('bar');
+const notice = document.getElementById('notice');
 const view = document.getElementById('view');
 const menu = document.getElementById('menu');
 const sheet = document.getElementById('sheet');
@@ -142,15 +149,17 @@ async function boot() {
     applyTextSize(state.textSize);
     mirrorTheme(state.theme);
     state.ready = true;
-    state.persisted = await persistentStorageGranted();
-    paint();
-    requestPersistentStorage().then(async (granted) => {
-      state.persisted = granted || await persistentStorageGranted();
-      paint();
-    });
   } catch {
     state.failed = true;
     state.ready = true;
+  }
+  paint();
+  if (state.failed) return;
+  try {
+    await refreshStoragePersistence();
+  } catch {
+    state.persisted = false;
+    state.storageNotice = shouldShowStorageNotice(false, isStorageNoticeDismissed());
     paint();
   }
 }
@@ -191,7 +200,27 @@ function paint() {
     const field = modal.querySelector('input');
     if (field && state.route.name === 'home' && !state.modal) field.focus();
   }
+  syncStorageNotice();
   applyTheme(state.theme);
+}
+
+let persistenceCheck = 0;
+
+async function refreshStoragePersistence() {
+  const ticket = ++persistenceCheck;
+  const persisted = await resolvePersistentStorage(globalThis.navigator?.storage);
+  if (ticket !== persistenceCheck) return;
+  state.persisted = persisted;
+  state.storageNotice = shouldShowStorageNotice(persisted, isStorageNoticeDismissed());
+  if (state.ready) paint();
+}
+
+function syncStorageNotice() {
+  document.documentElement.classList.toggle('storage-notice-open', state.storageNotice);
+  const noticeKey = state.storageNotice ? '1' : '0';
+  if (keys.notice === noticeKey) return;
+  notice.innerHTML = storageNoticeHtml(state);
+  keys.notice = noticeKey;
 }
 
 let liveKey = '';
@@ -253,6 +282,10 @@ function onClick(event) {
     importFile.click();
   } else if (action === 'persist') {
     askPersist();
+  } else if (action === 'dismiss-storage-notice') {
+    dismissStorageNotice();
+    state.storageNotice = false;
+    paint();
   } else if (action === 'erase') {
     state.modal = { type: 'confirm-erase' };
     paint();
@@ -555,9 +588,7 @@ function exportBackup() {
 }
 
 async function askPersist() {
-  const granted = await requestPersistentStorage();
-  state.persisted = granted || await persistentStorageGranted();
-  paint();
+  await refreshStoragePersistence();
   toast(state.persisted
     ? 'This browser will try to keep your data.'
     : 'This browser did not grant persistent storage. Export a backup to be safe.');
@@ -775,3 +806,7 @@ function registerServiceWorker() {
     /* Offline support waits until the next visit if registration fails. */
   });
 }
+
+window.addEventListener('appinstalled', () => {
+  refreshStoragePersistence();
+});

@@ -13,6 +13,7 @@ import { formatLong, formatWindow, fromEpochDay, isAfter, isBefore } from './dat
 import { format, toInput } from './money.js';
 import { nextOnOrAfter, recurrenceLabel } from './schedule.js';
 import { editCardPath, editEventPath, listPath } from './router.js';
+import { storageStatusLabel } from './storage-notice.js';
 
 const COPY = {
   BILL: {
@@ -388,10 +389,16 @@ function editCardHtml(state) {
   </form>`;
 }
 
+export function storageNoticeHtml(state) {
+  if (!state?.storageNotice) return '';
+  const text = 'This browser may delete this app’s data. Install Cal Budget to your home screen, and turn off any “clear data on exit” or “forget this site” setting (Brave, for example). Use Export backup in Settings.';
+  return `<aside class="storage-notice" role="note"><p>${esc(text)}</p><button type="button" data-action="dismiss-storage-notice">Dismiss</button></aside>`;
+}
+
 function settingsHtml(state) {
   const persisted = state.persisted
     ? 'This browser agreed to keep data on this device. Export a backup before you clear browser data.'
-    : 'Persistent storage is not granted yet. Browsers can still remove site data. Export a backup, and use Keep data on this device after you have added Cal Budget to your home screen.';
+    : 'Install Cal Budget to your home screen, and turn off “clear data on exit” or “forget this site” (Brave, for example). Then try Keep data on this device. Export a backup so you have a copy.';
   return `<div class="view-inner settings">
     <h2 class="section-title">How the numbers work</h2>
     <h3 class="group-label">Until payday</h3>
@@ -429,6 +436,7 @@ function settingsHtml(state) {
     <button type="button" class="btn-secondary" data-action="export">Export backup</button>
     <button type="button" class="btn-secondary" data-action="import">Import backup</button>
     <button type="button" class="btn-secondary" data-action="persist">Keep data on this device</button>
+    <p class="storage-status">${esc(storageStatusLabel(state.persisted))}</p>
     <p>${esc(persisted)}</p>
     <button type="button" class="btn-secondary" data-action="erase">Erase all data</button>
     <p class="fine">Web version 1.0</p>

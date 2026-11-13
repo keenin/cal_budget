@@ -179,6 +179,60 @@ textarea:focus-visible {
 
 .icon-button svg { width: 1.75rem; height: 1.75rem; }
 
+#notice {
+  padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+}
+
+#notice:empty { display: none; }
+
+.storage-notice {
+  width: 100%;
+  margin: 0 auto 8px;
+  padding: 10px 8px 10px 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border: 1px solid var(--outline);
+  border-left: 4px solid var(--teal);
+  border-radius: 14px;
+  background: var(--surface-variant);
+  color: var(--ink);
+}
+
+.storage-notice p {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.storage-notice button {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--teal);
+  font-weight: 650;
+  font-size: 0.9rem;
+  min-height: 2.75rem;
+  padding: 0 0.65rem;
+  border-radius: 10px;
+}
+
+@media (min-width: 800px) {
+  .storage-notice { width: min(40rem, 100%); }
+}
+
+html.storage-notice-open .view {
+  display: flex;
+  flex-direction: column;
+}
+
+html.storage-notice-open .home {
+  flex: 1;
+  min-height: 0;
+}
+
 .view {
   flex: 1;
   padding: 0 max(16px, env(safe-area-inset-right)) calc(1.5rem + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
@@ -524,6 +578,8 @@ textarea:focus-visible {
 .settings { display: flex; flex-direction: column; gap: 12px; padding-bottom: 24px; }
 
 .settings p { margin: 0; color: var(--muted); }
+
+.settings .storage-status { color: var(--ink); font-weight: 650; }
 
 .settings h3.group-label { margin: 0; }
 
