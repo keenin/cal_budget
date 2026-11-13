@@ -1,4 +1,4 @@
-const CACHE = 'calbudget-v5';
+const CACHE = 'calbudget-v6';
 
 const ASSETS = [
   '/',
@@ -13,6 +13,7 @@ const ASSETS = [
   '/js/store.js',
   '/js/router.js',
   '/js/ui.js',
+  '/js/storage-notice.js',
   '/js/app.js',
   '/icons/icon-192.png',
   '/icons/icon-512.png',

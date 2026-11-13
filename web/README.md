@@ -34,4 +34,4 @@ Settings → Export backup downloads a JSON file. Import backup replaces the dat
 
 ## Data
 
-IndexedDB database `calbudget`, schema version 1 (`events`, `cards`, `meta`). Later versions may only add stores or fields. The app requests persistent storage with `navigator.storage.persist()`. Browsers can still delete site data; the JSON backup is the durable copy.
+IndexedDB database `calbudget`, schema version 1 (`events`, `cards`, `meta`). Later versions may only add stores or fields. On startup the app checks `navigator.storage.persisted()` and, when that is not granted, calls `navigator.storage.persist()`. If the browser has no persist API or refuses the request, a dismissible notice warns that site data may be deleted (Brave’s “forget this site” setting is the example) and points at Export backup. Dismissing it hides the notice for 7 days. The notice preference is a localStorage timestamp and is not part of the budget database. Browsers can still delete site data; the JSON backup is the durable copy.

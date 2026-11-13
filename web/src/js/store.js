@@ -107,24 +107,6 @@ export async function replaceBudget({ events, cards, theme }) {
   });
 }
 
-export async function requestPersistentStorage() {
-  try {
-    if (!navigator.storage?.persist) return false;
-    return await navigator.storage.persist();
-  } catch {
-    return false;
-  }
-}
-
-export async function persistentStorageGranted() {
-  try {
-    if (!navigator.storage?.persisted) return false;
-    return await navigator.storage.persisted();
-  } catch {
-    return false;
-  }
-}
-
 function getAll(db, storeName) {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(storeName, 'readonly');
