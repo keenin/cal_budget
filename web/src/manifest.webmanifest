@@ -2,6 +2,7 @@
   "name": "Cal Budget",
   "short_name": "Cal Budget",
   "description": "What you owe until payday. Your data stays on this device.",
+  "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
