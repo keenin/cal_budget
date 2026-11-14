@@ -18,10 +18,10 @@ await rewriteServiceWorker(dist, hashes);
 const version = await cacheVersion(dist);
 const swPath = join(dist, 'sw.js');
 const sw = await readFile(swPath, 'utf8');
-if (!sw.includes("'calbudget-v8'") && !sw.includes('"calbudget-v8"')) {
-  throw new Error('sw.js is missing the calbudget-v8 cache name');
+if (!sw.includes("'calbudget-v9'") && !sw.includes('"calbudget-v9"')) {
+  throw new Error('sw.js is missing the calbudget-v9 cache name');
 }
-await writeFile(swPath, sw.replaceAll('calbudget-v8', `calbudget-${version}`));
+await writeFile(swPath, sw.replaceAll('calbudget-v9', `calbudget-${version}`));
 console.log(`Built web/dist (cache calbudget-${version})`);
 
 async function fingerprintModules(distDir) {

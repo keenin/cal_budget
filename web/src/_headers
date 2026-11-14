@@ -1,5 +1,8 @@
-/sw.js
-  Cache-Control: no-cache
+/*
+  X-Frame-Options: DENY
+  Strict-Transport-Security: max-age=86400
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-ZudHxLLMuaY2spYZOt8BJj26BD8T8OwqZ30U0q0+eQc='; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-ancestors 'none'
 
 /index.html
   Cache-Control: no-cache
@@ -12,3 +15,14 @@
 
 /js/*
   Cache-Control: public, max-age=31536000, immutable
+
+# /sw.js stays last. Cloudflare joins a repeated Cache-Control instead of
+# replacing it, so detach first. Cloudflare-CDN-Cache-Control is not sent to
+# the browser; it stops the zone from rewriting this .js file's no-cache into
+# max-age=14400. The worker script drops the document CSP so its fetches stay
+# on the page policy.
+/sw.js
+  ! Cache-Control
+  ! Content-Security-Policy
+  Cache-Control: no-cache
+  Cloudflare-CDN-Cache-Control: no-store
